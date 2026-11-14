@@ -1,0 +1,272 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and authorization details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the user (also doc ID)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the user"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Admin", "Content Manager", "Content Creator", "Designer"],
+          "description": "The authorization role of the user"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar initial or character"
+        },
+        "permissions": {
+          "type": "array",
+          "description": "A list of permission tags for the user"
+        }
+      },
+      "required": ["id", "name", "email", "role", "permissions"]
+    },
+    "ContentItem": {
+      "title": "ContentItem",
+      "description": "Campaign content item with details, checklist and comment thread",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the content item"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the content item"
+        },
+        "caption": {
+          "type": "string",
+          "description": "Marketing snippet caption"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the content task"
+        },
+        "status": {
+          "type": "string",
+          "description": "Kanban status stage"
+        },
+        "approvalStatus": {
+          "type": "string",
+          "description": "Manager approval status"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Target completion date"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Item urgency priority"
+        },
+        "objective": {
+          "type": "string",
+          "description": "Underlying marketing campaign goal"
+        },
+        "platforms": {
+          "type": "array",
+          "description": "Target channels for campaign delivery"
+        },
+        "assignedTo": {
+          "type": "array",
+          "description": "Target assignees list"
+        },
+        "tasks": {
+          "type": "array",
+          "description": "Checklist/To-Do array"
+        },
+        "comments": {
+          "type": "array",
+          "description": "Activity/Comments feed array"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Static media list of cover/attachments uploads"
+        }
+      },
+      "required": ["id", "title", "status", "approvalStatus", "dueDate", "platforms"]
+    },
+    "MaterialItem": {
+      "title": "MaterialItem",
+      "description": "Reference to media files or documents used in content creation",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the material"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the resource file"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Image", "Video", "Document", "Link"],
+          "description": "Format type of the link/attachment"
+        },
+        "url": {
+          "type": "string",
+          "description": "Fully qualified address URL for this asset"
+        },
+        "addedDate": {
+          "type": "string",
+          "description": "Formatted date the file was compiled"
+        },
+        "size": {
+          "type": "string",
+          "description": "Optional human-readable filesize"
+        }
+      },
+      "required": ["id", "name", "type", "url", "addedDate"]
+    },
+    "AgriEvent": {
+      "title": "AgriEvent",
+      "description": "Key event on the agricultural or national calendar",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the calendar event"
+        },
+        "title": {
+          "type": "string",
+          "description": "Display name of the agricultural or national event"
+        },
+        "date": {
+          "type": "string",
+          "description": "Target completion date index"
+        },
+        "category": {
+          "type": "string",
+          "description": "Event categorization tag"
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief overview description of what this event honors"
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "Advised channels for targeting content to"
+        },
+        "importance": {
+          "type": "string",
+          "description": "Relative event weight/vibe"
+        }
+      },
+      "required": ["id", "title", "date", "category"]
+    },
+    "CustomKPI": {
+      "title": "CustomKPI",
+      "description": "User custom key performance indicators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "target": { "type": "string" },
+        "current": { "type": "string" },
+        "platform": { "type": "string" },
+        "metric": { "type": "string" },
+        "progress": { "type": "number" }
+      },
+      "required": ["id", "name", "target", "current", "platform", "metric", "progress"]
+    },
+    "KanbanStage": {
+      "title": "KanbanStage",
+      "description": "A workflow stage in the Kanban board",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "nameAr": { "type": "string" },
+        "status": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "name", "status", "color"]
+    },
+    "Competitor": {
+      "title": "Competitor",
+      "description": "Information about a competitor profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "nameAr": { "type": "string" },
+        "platform": { "type": "string" },
+        "noteEn": { "type": "string" },
+        "noteAr": { "type": "string" }
+      },
+      "required": ["id", "name", "platform"]
+    },
+    "DynamicCompetitorLog": {
+      "title": "DynamicCompetitorLog",
+      "description": "Metric tracking log for a competitor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "competitorId": { "type": "string" },
+        "platform": { "type": "string" },
+        "date": { "type": "string" },
+        "period": { "type": "string" },
+        "metrics": { "type": "object" }
+      },
+      "required": ["id", "competitorId", "platform", "date", "period"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Application settings configurations",
+      "type": "object",
+      "properties": {
+        "names": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of all application users"
+    },
+    "content": {
+      "schema": "ContentItem",
+      "description": "Collection of all campaign content prepared and scheduled"
+    },
+    "materials": {
+      "schema": "MaterialItem",
+      "description": "Collection of static media content, documents, and reference clips"
+    },
+    "events": {
+      "schema": "AgriEvent",
+      "description": "Collection of key national and agricultural calendar events"
+    },
+    "custom_kpis": {
+      "schema": "CustomKPI",
+      "description": "Collection of custom KPIs linked to user profiles"
+    },
+    "stages": {
+      "schema": "KanbanStage",
+      "description": "Collection of custom Kanban stages"
+    },
+    "settings": {
+      "schema": "Setting",
+      "description": "Collection of operational settings like custom layout tabs mapping"
+    },
+    "competitors": {
+      "schema": "Competitor",
+      "description": "Collection of competitor records"
+    },
+    "competitors_logs": {
+      "schema": "DynamicCompetitorLog",
+      "description": "Collection of dynamic logs tracked over intervals for competitors"
+    }
+  }
+}

@@ -1,0 +1,453 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: users
+// Document ID: {userId} (matches user id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - name: string (required, 1-100 chars)
+//   - email: string (required, 3-100 chars, valid email format)
+//   - role: string (required, 'Admin' | 'Content Manager' | 'Content Creator' | 'Designer', privileged)
+//   - permissions: list of strings (required, size <= 20, privileged)
+//   - avatar: string (optional, 0-100 chars)
+//   - password: string (optional, 0-100 chars)
+//   - lastLogin: string (optional, 0-100 chars)
+//
+// Collection: content
+// Document ID: {contentId} (matches content id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - title: string (required, 1-300 chars)
+//   - status: string (required, 'Idea' | 'In Progress' | 'Ready' | 'Approved' | 'Scheduled' | 'Published' | 'Delayed' | 'Pending' | 'Review')
+//   - approvalStatus: string (required, 'Pending' | 'Approved' | 'Rejected', manager-only transition)
+//   - dueDate: string (required, 1-50 chars)
+//   - platforms: list of strings (required, 1-10 items)
+//   - caption: string (optional, 0-5000 chars)
+//   - description: string (optional, 0-10000 chars)
+//   - details: string (optional, 0-10000 chars)
+//   - publishDate: string (optional, 0-50 chars)
+//   - priority: string (optional, 'High' | 'Normal' | 'Low')
+//   - objective: string (optional, 0-200 chars)
+//   - type: string (optional, 'Post' | 'Reel' | 'Story' | 'Video' | 'Image' | 'Carousel' | 'Hybrid')
+//   - assignedTo: list of strings (optional, size <= 20)
+//   - createdBy: string (optional, 0-100 chars)
+//   - mediaUrl: string (optional, 0-2000 chars)
+//   - week: string (optional, 0-50 chars)
+//   - stageId: string (optional, nullable, 0-50 chars)
+//   - notes: string (optional, 0-2000 chars)
+//   - paid: bool (optional)
+//   - tasks: list of maps (optional, size <= 100)
+//   - comments: list of maps (optional, size <= 200)
+//   - attachments: list of maps (optional, size <= 50)
+//   - labels: list of strings (optional, size <= 20)
+//   - results: list of maps (optional, size <= 50)
+//   - preparationDate: string (optional, 0-50 chars)
+//   - isExternal: bool (optional)
+//   - externalUrl: string (optional, 0-2000 chars)
+//   - tuv: string (optional, 0-100 chars)
+//   - scheduledInPublishing: bool (optional)
+//   - position: number (optional, >= 0)
+//
+// Collection: materials
+// Document ID: {materialId} (matches material id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - name: string (required, 1-200 chars)
+//   - type: string (required, 'Image' | 'Video' | 'Document' | 'Link')
+//   - url: string (required, 1-2000 chars)
+//   - addedDate: string (required, 1-50 chars)
+//   - size: string (optional, 0-50 chars)
+//   - folderId: string (optional, 0-100 chars)
+//
+// Collection: events
+// Document ID: {eventId} (matches event id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - title: string (required, 1-200 chars)
+//   - date: string (required, 1-50 chars)
+//   - category: string (required, 1-100 chars)
+//   - description: string (optional, 0-2000 chars)
+//   - recommendations: list of strings (optional, size <= 10)
+//   - recommendation: string (optional, 0-50 chars)
+//   - importance: string (optional, 0-50 chars)
+//   - alertAheadDays: number (optional, >= 0)
+//   - preparationDate: string (optional, 0-50 chars)
+//
+// Collection: custom_kpis
+// Document ID: {kpiId} (matches kpi id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - name: string (required, 1-100 chars)
+//   - target: string (required, 1-50 chars)
+//   - current: string (required, 1-50 chars)
+//   - platform: string (required, 1-50 chars)
+//   - metric: string (required, 1-50 chars)
+//   - progress: number (required, 0-100)
+//
+// Collection: stages
+// Document ID: {stageId} (matches stage id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - name: string (required, 1-100 chars)
+//   - nameAr: string (optional, 0-100 chars)
+//   - status: string (required, 'Idea' | 'In Progress' | 'Ready' | 'Approved' | 'Scheduled' | 'Published' | 'Delayed' | 'Pending' | 'Review')
+//   - color: string (required, 1-50 chars)
+//   - order: number (optional, >= 0)
+//
+// Collection: settings
+// Document ID: {settingId} (e.g., 'tab_names', 'init_status')
+// Fields:
+//   - names: list of strings (optional, size <= 50)
+//   - content, materials, events, custom_kpis, competitors, competitors_logs: bool (optional)
+//   - siteName, logo, primaryColor: string (optional)
+//
+// Collection: competitors
+// Document ID: {competitorId} (matches competitor id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - name: string (required, 1-200 chars)
+//   - nameAr: string (optional, 0-200 chars)
+//   - platform: string (required, 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok' | 'WhatsApp' | 'Other')
+//   - noteEn: string (optional, 0-2000 chars)
+//   - noteAr: string (optional, 0-2000 chars)
+//
+// Collection: competitors_logs
+// Document ID: {logId} (matches log id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - competitorId: string (required, 1-100 chars)
+//   - platform: string (required, 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok' | 'WhatsApp' | 'Other')
+//   - date: string (required, 1-50 chars)
+//   - period: string (required, 'daily' | 'weekly' | 'monthly')
+//   - metrics: map (optional, size <= 50)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Global Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function getUserRole() {
+      return !isAuthenticated() ? 'none' :
+        ('role' in request.auth.token && request.auth.token.role is string) ? request.auth.token.role :
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ?
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : 'none';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.keys().hasAny(['admin']) && request.auth.token.admin == true) ||
+        getUserRole() == 'Admin' ||
+        (request.auth.token.keys().hasAny(['email']) && 
+         request.auth.token.email in ['admin@cropsa.com', 'ahmed@cropsa.com'])
+      );
+    }
+
+    function isManager() {
+      return isAdmin() || getUserRole() == 'Content Manager';
+    }
+
+    function isCreator() {
+      return isManager() || getUserRole() == 'Content Creator';
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      let allowed = ['id', 'name', 'email', 'role', 'permissions', 'avatar', 'password', 'lastLogin'];
+      let validRoles = ['Admin', 'Content Manager', 'Content Creator', 'Designer'];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'name', 'email', 'role', 'permissions']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 100 && isValidEmail(data.email) &&
+        data.role in validRoles &&
+        data.permissions is list && data.permissions.size() <= 20 &&
+        (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 100)) &&
+        (!('password' in data) || (data.password is string && data.password.size() <= 100)) &&
+        (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() <= 100));
+    }
+
+    function isValidContent(data) {
+      let allowed = [
+        'id', 'week', 'title', 'platforms', 'type', 'caption', 'details', 'description',
+        'mediaUrl', 'status', 'stageId', 'assignedTo', 'createdBy', 'dueDate', 'publishDate',
+        'approvalStatus', 'priority', 'objective', 'notes', 'paid', 'tasks', 'comments',
+        'attachments', 'labels', 'results', 'preparationDate', 'isExternal', 'externalUrl',
+        'tuv', 'scheduledInPublishing', 'position'
+      ];
+      let validStatuses = ['Idea', 'In Progress', 'Ready', 'Approved', 'Scheduled', 'Published', 'Delayed', 'Pending', 'Review'];
+      let validApprovals = ['Pending', 'Approved', 'Rejected'];
+      let validPriorities = ['High', 'Normal', 'Low'];
+      let validTypes = ['Post', 'Reel', 'Story', 'Video', 'Image', 'Carousel', 'Hybrid'];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'title', 'status', 'approvalStatus', 'dueDate', 'platforms']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 300 &&
+        data.status in validStatuses &&
+        data.approvalStatus in validApprovals &&
+        data.dueDate is string && data.dueDate.size() >= 1 && data.dueDate.size() <= 50 &&
+        data.platforms is list && data.platforms.size() >= 1 && data.platforms.size() <= 10 &&
+        (!('caption' in data) || (data.caption is string && data.caption.size() <= 5000)) &&
+        (!('details' in data) || (data.details is string && data.details.size() <= 10000)) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 10000)) &&
+        (!('publishDate' in data) || (data.publishDate is string && data.publishDate.size() <= 50)) &&
+        (!('priority' in data) || data.priority in validPriorities) &&
+        (!('objective' in data) || (data.objective is string && data.objective.size() <= 200)) &&
+        (!('type' in data) || data.type in validTypes) &&
+        (!('assignedTo' in data) || (data.assignedTo is list && data.assignedTo.size() <= 20)) &&
+        (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 100)) &&
+        (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 2000)) &&
+        (!('week' in data) || (data.week is string && data.week.size() <= 50)) &&
+        (!('stageId' in data) || data.stageId == null || (data.stageId is string && data.stageId.size() <= 50)) &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
+        (!('paid' in data) || data.paid is bool) &&
+        (!('tasks' in data) || (data.tasks is list && data.tasks.size() <= 100)) &&
+        (!('comments' in data) || (data.comments is list && data.comments.size() <= 200)) &&
+        (!('attachments' in data) || (data.attachments is list && data.attachments.size() <= 50)) &&
+        (!('labels' in data) || (data.labels is list && data.labels.size() <= 20)) &&
+        (!('results' in data) || (data.results is list && data.results.size() <= 50)) &&
+        (!('preparationDate' in data) || (data.preparationDate is string && data.preparationDate.size() <= 50)) &&
+        (!('isExternal' in data) || data.isExternal is bool) &&
+        (!('externalUrl' in data) || (data.externalUrl is string && data.externalUrl.size() <= 2000)) &&
+        (!('tuv' in data) || (data.tuv is string && data.tuv.size() <= 100)) &&
+        (!('scheduledInPublishing' in data) || data.scheduledInPublishing is bool) &&
+        (!('position' in data) || (data.position is number && data.position >= 0));
+    }
+
+    function isValidMaterial(data) {
+      let allowed = ['id', 'name', 'type', 'url', 'addedDate', 'size', 'folderId'];
+      let validTypes = ['Image', 'Video', 'Document', 'Link'];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'name', 'type', 'url', 'addedDate']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.type in validTypes &&
+        data.url is string && data.url.size() >= 1 && data.url.size() <= 2000 &&
+        data.addedDate is string && data.addedDate.size() >= 1 && data.addedDate.size() <= 50 &&
+        (!('size' in data) || (data.size is string && data.size.size() <= 50)) &&
+        (!('folderId' in data) || (data.folderId is string && data.folderId.size() <= 100));
+    }
+
+    function isValidAgriEvent(data) {
+      let allowed = [
+        'id', 'title', 'date', 'category', 'description', 
+        'recommendations', 'recommendation', 'importance', 
+        'alertAheadDays', 'preparationDate'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'title', 'date', 'category']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+        data.date is string && data.date.size() >= 1 && data.date.size() <= 50 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 100 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+        (!('recommendations' in data) || (data.recommendations is list && data.recommendations.size() <= 10)) &&
+        (!('recommendation' in data) || (data.recommendation is string && data.recommendation.size() <= 50)) &&
+        (!('importance' in data) || (data.importance is string && data.importance.size() <= 50)) &&
+        (!('alertAheadDays' in data) || (data.alertAheadDays is number && data.alertAheadDays >= 0)) &&
+        (!('preparationDate' in data) || (data.preparationDate is string && data.preparationDate.size() <= 50));
+    }
+
+    function isValidCustomKPI(data) {
+      let allowed = ['id', 'name', 'target', 'current', 'platform', 'metric', 'progress'];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(allowed) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.target is string && data.target.size() >= 1 && data.target.size() <= 50 &&
+        data.current is string && data.current.size() >= 1 && data.current.size() <= 50 &&
+        data.platform is string && data.platform.size() >= 1 && data.platform.size() <= 50 &&
+        data.metric is string && data.metric.size() >= 1 && data.metric.size() <= 50 &&
+        data.progress is number && data.progress >= 0 && data.progress <= 100;
+    }
+
+    function isValidKanbanStage(data) {
+      let allowed = ['id', 'name', 'nameAr', 'status', 'color', 'order'];
+      let validStatuses = ['Idea', 'In Progress', 'Ready', 'Approved', 'Scheduled', 'Published', 'Delayed', 'Pending', 'Review'];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'name', 'status', 'color']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        (!('nameAr' in data) || (data.nameAr is string && data.nameAr.size() <= 100)) &&
+        data.status in validStatuses &&
+        data.color is string && data.color.size() >= 1 && data.color.size() <= 50 &&
+        (!('order' in data) || (data.order is number && data.order >= 0));
+    }
+
+    function isValidSetting(data) {
+      let allowed = [
+        'names', 'content', 'materials', 'events', 'custom_kpis', 
+        'competitors', 'competitors_logs', 'siteName', 'logo', 'primaryColor'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('names' in data) || (data.names is list && data.names.size() <= 50)) &&
+        (!('content' in data) || data.content is bool) &&
+        (!('materials' in data) || data.materials is bool) &&
+        (!('events' in data) || data.events is bool) &&
+        (!('custom_kpis' in data) || data.custom_kpis is bool) &&
+        (!('competitors' in data) || data.competitors is bool) &&
+        (!('competitors_logs' in data) || data.competitors_logs is bool) &&
+        (!('siteName' in data) || (data.siteName is string && data.siteName.size() <= 100)) &&
+        (!('logo' in data) || (data.logo is string && data.logo.size() <= 1000)) &&
+        (!('primaryColor' in data) || (data.primaryColor is string && data.primaryColor.size() <= 50));
+    }
+
+    function isValidCompetitor(data) {
+      let allowed = ['id', 'name', 'nameAr', 'platform', 'noteEn', 'noteAr'];
+      let validPlatforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'WhatsApp', 'Other'];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'name', 'platform']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        (!('nameAr' in data) || (data.nameAr is string && data.nameAr.size() <= 200)) &&
+        data.platform in validPlatforms &&
+        (!('noteEn' in data) || (data.noteEn is string && data.noteEn.size() <= 2000)) &&
+        (!('noteAr' in data) || (data.noteAr is string && data.noteAr.size() <= 2000));
+    }
+
+    function isValidCompetitorLog(data) {
+      let allowed = ['id', 'competitorId', 'platform', 'date', 'period', 'metrics'];
+      let validPlatforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'WhatsApp', 'Other'];
+      let validPeriods = ['daily', 'weekly', 'monthly'];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'competitorId', 'platform', 'date', 'period']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.competitorId is string && data.competitorId.size() >= 1 && data.competitorId.size() <= 100 &&
+        data.platform in validPlatforms &&
+        data.date is string && data.date.size() >= 1 && data.date.size() <= 50 &&
+        data.period in validPeriods &&
+        (!('metrics' in data) || (data.metrics is map && data.metrics.size() <= 50));
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Root safety net - deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) &&
+        request.resource.data.id == userId &&
+        (isAdmin() || (isOwner(userId) && request.resource.data.role != 'Admin'));
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']) &&
+        (isAdmin() || (isOwner(userId) && areImmutableFieldsUnchanged(['id', 'role', 'permissions'])));
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Content collection
+    match /content/{contentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidContent(request.resource.data) &&
+        request.resource.data.id == contentId;
+      allow update: if isAuthenticated() && isValidContent(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']) &&
+        (isAdmin() || isManager() || areImmutableFieldsUnchanged(['approvalStatus']));
+      allow delete: if isAuthenticated() && 
+        (isAdmin() || isManager() || (resource.data.createdBy == request.auth.uid));
+    }
+
+    // Materials collection
+    match /materials/{materialId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidMaterial(request.resource.data) &&
+        request.resource.data.id == materialId;
+      allow update: if isAuthenticated() && isValidMaterial(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAuthenticated() && (isAdmin() || isManager());
+    }
+
+    // Events collection
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidAgriEvent(request.resource.data) &&
+        request.resource.data.id == eventId;
+      allow update: if isAuthenticated() && isValidAgriEvent(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAuthenticated() && (isAdmin() || isManager());
+    }
+
+    // Custom KPIs collection
+    match /custom_kpis/{kpiId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCustomKPI(request.resource.data) &&
+        request.resource.data.id == kpiId;
+      allow update: if isAuthenticated() && isValidCustomKPI(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAuthenticated() && (isAdmin() || isManager());
+    }
+
+    // Stages collection
+    match /stages/{stageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidKanbanStage(request.resource.data) &&
+        request.resource.data.id == stageId && (isAdmin() || isManager());
+      allow update: if isAuthenticated() && isValidKanbanStage(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']) && (isAdmin() || isManager());
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Settings collection
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidSetting(request.resource.data) &&
+        (isAdmin() || isManager());
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Competitors collection
+    match /competitors/{competitorId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCompetitor(request.resource.data) &&
+        request.resource.data.id == competitorId;
+      allow update: if isAuthenticated() && isValidCompetitor(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAuthenticated() && (isAdmin() || isManager());
+    }
+
+    // Competitors Logs collection
+    match /competitors_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCompetitorLog(request.resource.data) &&
+        request.resource.data.id == logId;
+      allow update: if isAuthenticated() && isValidCompetitorLog(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAuthenticated() && (isAdmin() || isManager());
+    }
+  }
+}

@@ -1,0 +1,172 @@
+import { User, ContentItem } from './types';
+
+export const MOCK_USERS: User[] = [
+  { id: '1', name: 'Ahmed Ali', email: 'ahmed@cropsa.com', role: 'Admin', permissions: ['all'], avatar: 'AA' },
+  { id: '2', name: 'Sara Hassan', email: 'sara@cropsa.com', role: 'Content Manager', permissions: ['create', 'edit', 'approve'], avatar: 'SH' },
+  { id: '3', name: 'Mona Zaki', email: 'mona@cropsa.com', role: 'Content Creator', permissions: ['create', 'edit'], avatar: 'MZ' },
+  { id: '4', name: 'Fady Ibrahim', email: 'fady@cropsa.com', role: 'Designer', permissions: ['view'], avatar: 'FI' },
+];
+
+export const MOCK_CONTENT: ContentItem[] = [
+  { 
+    id: '1', 
+    week: 'Week 1',
+    title: 'كروبسا سند ليك', 
+    platforms: ['Facebook', 'Instagram'], 
+    type: 'Hybrid', 
+    caption: 'كروبسا سند ليك - Trust', 
+    details: '90% من المزارعين بيخسروا أرضهم بسبب انهم مش عارفين الأرض محتاجة ايه..',
+    description: 'أشهر مرض في البطاطس على الإطلاق - هو العفن البني. كل مزارع بيعرف تأثير المرض ده وقد ايه بيقلل المحصول وبيمرض الأرض. النهاردة بنقدم لك نصائح من كروبسا لعدم ظهور العفن البني في تربتك ومحصولك.',
+    status: 'Published', 
+    stageId: 'stage-6',
+    assignedTo: ['Ahmed Ali'], 
+    createdBy: 'Admin', 
+    dueDate: '2026-03-10', 
+    publishDate: '2026-03-12',
+    approvalStatus: 'Approved',
+    priority: 'Normal',
+    objective: 'Trust',
+    paid: false,
+    mediaUrl: 'https://images.unsplash.com/photo-1518977676601-b53f02bad675?q=80&w=800&auto=format&fit=crop',
+    tasks: [
+      { id: 't1', text: 'Design visual', completed: true },
+      { id: 't2', text: 'Write copy', completed: true },
+      { id: 't3', text: 'Review with manager', completed: true }
+    ],
+    comments: [
+      { id: 'c1', user: 'Omar Khaled', text: 'العفن البني في البطاطس موضوع مهم جداً للمزارعين في الدلتا.', date: '2026-03-15 09:30 PM' }
+    ],
+    attachments: []
+  },
+  { 
+    id: '2', 
+    week: 'Week 1',
+    title: 'احنا جينا ننهي الكلام', 
+    platforms: ['Facebook', 'TikTok'], 
+    type: 'Video', 
+    caption: 'احنا جينا ننهي الكلام عارف خير الأرض..', 
+    details: 'فيديو توضيحي عن كيفية استخدام تطبيق كروبسا في متابعة حالة المحاصيل وتلقي التوصيات الفنية.',
+    description: 'فيديو توضيحي عن كيفية استخدام تطبيق كروبسا في متابعة حالة المحاصيل وتلقي التوصيات الفنية.',
+    status: 'Published', 
+    stageId: 'stage-6',
+    assignedTo: ['Sara Hassan', 'Fady Ibrahim'], 
+    createdBy: 'Admin', 
+    dueDate: '2026-03-12', 
+    publishDate: '2026-03-14',
+    approvalStatus: 'Approved',
+    priority: 'High',
+    objective: 'Clinic',
+    paid: true,
+    mediaUrl: 'https://images.unsplash.com/photo-1595113316349-9fa4eb24f884?q=80&w=800&auto=format&fit=crop',
+    tasks: [
+      { id: 't4', text: 'Shoot video', completed: true },
+      { id: 't5', text: 'Edit video', completed: true },
+      { id: 't6', text: 'Add subtitles', completed: true }
+    ],
+    comments: [],
+    attachments: []
+  },
+  { 
+    id: '3', 
+    week: 'Week 2',
+    title: 'تطبيق cropsa للمستثمرين', 
+    platforms: ['LinkedIn'], 
+    type: 'Hybrid', 
+    caption: 'نشرح التطبيق ومميزاته للشركاء', 
+    details: 'بوست موجه للمستثمرين والشركاء عن نمو منصة كروبسا وتأثيرها في التحول الرقمي للزراعة في مصر.',
+    description: 'بوست موجه للمستثمرين والشركاء عن نمو منصة كروبسا وتأثيرها في التحول الرقمي للزراعة في مصر.',
+    status: 'Approved', 
+    stageId: 'stage-4',
+    assignedTo: ['Mona Zaki'], 
+    createdBy: 'Admin', 
+    dueDate: '2026-05-25', 
+    publishDate: '2026-05-28',
+    approvalStatus: 'Approved',
+    priority: 'Normal',
+    objective: 'Service',
+    paid: false,
+    mediaUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=800&auto=format&fit=crop',
+    tasks: [
+      { id: 't7', text: 'Drafting data', completed: true },
+      { id: 't8', text: 'Preparing slides', completed: true }
+    ],
+    comments: [],
+    attachments: []
+  },
+  { 
+    id: '4', 
+    week: 'Week 2',
+    title: 'موسم حصاد القمح', 
+    platforms: ['Facebook', 'WhatsApp'], 
+    type: 'Hybrid', 
+    caption: 'استعدوا يا أبطال لموسم الخير', 
+    details: 'نصائح هامة للمزارعين قبل وأثناء حصاد القمح لتقليل الفاقد.',
+    description: 'نصائح هامة للمزارعين قبل وأثناء حصاد القمح لتقليل الفاقد.',
+    status: 'Scheduled', 
+    stageId: 'stage-5',
+    assignedTo: ['Ahmed Ali', 'Mona Zaki'], 
+    createdBy: 'Admin', 
+    dueDate: '2026-05-22', 
+    publishDate: '2026-06-10',
+    approvalStatus: 'Approved',
+    priority: 'High',
+    objective: 'Education',
+    paid: false,
+    mediaUrl: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d0200b?q=80&w=800&auto=format&fit=crop',
+    tasks: [
+      { id: 't9', text: 'Find experts tips', completed: true },
+      { id: 't10', text: 'Create graphics', completed: true }
+    ],
+    comments: [],
+    attachments: []
+  },
+  { 
+    id: '5', 
+    week: 'Week 3',
+    title: 'عرض الأسمدة الجديد', 
+    platforms: ['Facebook', 'Instagram'], 
+    type: 'Hybrid', 
+    caption: 'خصومات تصل لـ 20% على الأسمدة', 
+    details: 'عرض خاص لفترة محدودة على أفضل أنواع الأسمدة العضوية.',
+    description: 'عرض خاص لفترة محدودة على أفضل أنواع الأسمدة العضوية.',
+    status: 'In Progress', 
+    stageId: 'stage-2',
+    assignedTo: ['Sara Hassan'], 
+    createdBy: 'Admin', 
+    dueDate: '2026-05-28', 
+    approvalStatus: 'Pending',
+    priority: 'Normal',
+    objective: 'Sales',
+    paid: true,
+    mediaUrl: 'https://images.unsplash.com/photo-1628352081506-83c43143ed6d?q=80&w=800&auto=format&fit=crop',
+    tasks: [
+      { id: 't11', text: 'Approve promo pricing', completed: true },
+      { id: 't12', text: 'Design banner', completed: false }
+    ],
+    comments: [],
+    attachments: []
+  },
+  { 
+    id: '6', 
+    week: 'Week 3',
+    title: 'قصة نجاح مزارع من المنيا', 
+    platforms: ['TikTok', 'Facebook'], 
+    type: 'Video', 
+    caption: 'ازاي عم محمد ضاعف محصوله مع كروبسا', 
+    details: 'فيديو تقريري من أرض الواقع مع أحد مستخدمي التطبيق.',
+    description: 'فيديو تقريري من أرض الواقع مع أحد مستخدمي التطبيق.',
+    status: 'Idea', 
+    stageId: 'stage-1',
+    assignedTo: ['Fady Ibrahim'], 
+    createdBy: 'Admin', 
+    dueDate: '2026-06-05', 
+    approvalStatus: 'Pending',
+    priority: 'Normal',
+    objective: 'Trust',
+    paid: false,
+    tasks: [],
+    comments: [],
+    attachments: []
+  }
+];
+

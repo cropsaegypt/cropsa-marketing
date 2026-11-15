@@ -48,12 +48,29 @@ import {
   Check,
   PlusCircle,
   Trash2,
-  Lock
+  Lock,
+  Globe,
+  Link2,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+  Key,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { translations } from '../translations';
 import { Language, Platform, CustomKPI } from '../types';
 import { cn } from '../lib/utils';
+import { 
+  loadMetaConfig, 
+  saveMetaConfig, 
+  testMetaConnection, 
+  fetchMetaInsights, 
+  MetaConfig, 
+  MetaTestResult 
+} from '../lib/meta';
 
 interface AnalyticsProps {
   lang: Language;
@@ -231,6 +248,119 @@ export const Analytics: React.FC<AnalyticsProps> = ({
 
   // Toast / notification feedback after deletion / modification
   const [alertText, setAlertText] = useState<string | null>(null);
+
+  // Meta Graph API Integration States
+  const [isMetaModalOpen, setIsMetaModalOpen] = useState(false);
+  const [metaConfig, setMetaConfig] = useState<MetaConfig | null>(null);
+  const [metaPageId, setMetaPageId] = useState('');
+  const [metaAccessToken, setMetaAccessToken] = useState('');
+  const [metaIgUserId, setMetaIgUserId] = useState('');
+  const [isTestingMeta, setIsTestingMeta] = useState(false);
+  const [metaTestResult, setMetaTestResult] = useState<MetaTestResult | null>(null);
+  const [isSyncingMeta, setIsSyncingMeta] = useState(false);
+  const [showMetaGuide, setShowMetaGuide] = useState(false);
+
+  React.useEffect(() => {
+    loadMetaConfig().then((cfg) => {
+      if (cfg) {
+        setMetaConfig(cfg);
+        if (cfg.pageId) setMetaPageId(cfg.pageId);
+        if (cfg.accessToken) setMetaAccessToken(cfg.accessToken);
+        if (cfg.igUserId) setMetaIgUserId(cfg.igUserId);
+      }
+    });
+  }, []);
+
+  const handleTestMetaConnection = async () => {
+    if (!metaPageId.trim() || !metaAccessToken.trim()) {
+      showToast(isRtl ? 'برجاء إدخال معرف الصفحة (Page ID) ومفتاح الوصول (Token) أولاً' : 'Please provide Page ID & Access Token');
+      return;
+    }
+    setIsTestingMeta(true);
+    setMetaTestResult(null);
+    try {
+      const res = await testMetaConnection(metaPageId, metaAccessToken);
+      setMetaTestResult(res);
+      if (res.success) {
+        showToast(isRtl ? `تم الاتصال بنجاح بصفحة: ${res.pageName}` : `Connected to: ${res.pageName}`);
+        const updatedCfg: MetaConfig = {
+          pageId: metaPageId.trim(),
+          pageName: res.pageName,
+          pagePicture: res.pictureUrl,
+          accessToken: metaAccessToken.trim(),
+          igUserId: res.instagramAccount?.id || metaIgUserId.trim() || undefined,
+          igUsername: res.instagramAccount?.username,
+          status: 'connected',
+          followersCount: res.followersCount,
+          lastSyncedAt: metaConfig?.lastSyncedAt
+        };
+        setMetaConfig(updatedCfg);
+        await saveMetaConfig(updatedCfg);
+      } else {
+        showToast(res.error || (isRtl ? 'فشل الاتصال بـ Meta' : 'Meta connection failed'));
+      }
+    } finally {
+      setIsTestingMeta(false);
+    }
+  };
+
+  const handleSaveMetaConfig = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!metaPageId.trim() || !metaAccessToken.trim()) {
+      showToast(isRtl ? 'برجاء إدخال معرف الصفحة ومفتاح الوصول' : 'Please provide Page ID & Access Token');
+      return;
+    }
+    const updatedCfg: MetaConfig = {
+      ...(metaConfig || { status: 'disconnected' }),
+      pageId: metaPageId.trim(),
+      accessToken: metaAccessToken.trim(),
+      igUserId: metaIgUserId.trim() || undefined,
+      status: metaTestResult?.success ? 'connected' : (metaConfig?.status || 'connected')
+    };
+    setMetaConfig(updatedCfg);
+    await saveMetaConfig(updatedCfg);
+    showToast(isRtl ? 'تم حفظ إعدادات Meta بنجاح!' : 'Meta credentials saved successfully!');
+  };
+
+  const handleSyncMetaNow = async () => {
+    if (!metaPageId.trim() || !metaAccessToken.trim()) {
+      showToast(isRtl ? 'يرجى إدخال واختبار بيانات الاتصال بـ Meta أولاً' : 'Enter and test Meta credentials first');
+      return;
+    }
+    setIsSyncingMeta(true);
+    try {
+      const res = await fetchMetaInsights(metaPageId, metaAccessToken, metaIgUserId);
+      if (res.success && res.syncedWeeklyMetrics?.length > 0) {
+        const newMetricKeys = new Set(res.syncedWeeklyMetrics.map(m => `${m.platform}_${m.month}_${m.week}`));
+        const filteredExisting = metrics.filter(m => !newMetricKeys.has(`${m.platform}_${m.month}_${m.week}`));
+        const combined = [...res.syncedWeeklyMetrics, ...filteredExisting];
+        saveMetrics(combined);
+
+        const nowStr = new Date().toLocaleString(isRtl ? 'ar-EG' : 'en-US');
+        const updatedCfg: MetaConfig = {
+          ...(metaConfig || { pageId: metaPageId, accessToken: metaAccessToken }),
+          pageId: metaPageId.trim(),
+          accessToken: metaAccessToken.trim(),
+          igUserId: metaIgUserId.trim() || undefined,
+          lastSyncedAt: nowStr,
+          status: 'connected',
+          followersCount: res.summary?.followersCount || metaConfig?.followersCount
+        };
+        setMetaConfig(updatedCfg);
+        await saveMetaConfig(updatedCfg);
+
+        showToast(isRtl 
+          ? `تمت مزامنة ${res.metricsCount} سجلاً أسبوعياً حقيقياً من فيسبوك وإنستغرام بنجاح!` 
+          : `Synced ${res.metricsCount} real weekly records from Meta!`);
+      } else {
+        showToast(res.error || (isRtl ? 'تعذر جلب الإحصائيات' : 'Failed to fetch insights'));
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error syncing Meta insights');
+    } finally {
+      setIsSyncingMeta(false);
+    }
+  };
 
   const showToast = (txt: string) => {
     setAlertText(txt);
@@ -685,6 +815,35 @@ export const Analytics: React.FC<AnalyticsProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Meta Graph API Integration Button */}
+          <button
+            type="button"
+            onClick={() => setIsMetaModalOpen(true)}
+            className={cn(
+              "flex items-center gap-2.5 px-5 py-3.5 border text-xs font-black rounded-2xl transition-all cursor-pointer active:scale-95 shadow-sm",
+              metaConfig?.status === 'connected'
+                ? "bg-blue-50/90 border-blue-200 text-blue-900 hover:bg-blue-100"
+                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+            )}
+            title={isRtl ? "ربط واجهات Meta الرسمية (Facebook & Instagram) لجلب الأرقام الحقيقية" : "Connect Meta Graph API"}
+          >
+            <div className="flex items-center -space-x-1 rtl:space-x-reverse">
+              <Facebook size={15} className="text-blue-600" />
+              <Instagram size={15} className="text-pink-600" />
+            </div>
+            <span>{isRtl ? 'ربط ومزامنة Meta API' : 'Meta Graph API'}</span>
+            {metaConfig?.status === 'connected' ? (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                {isRtl ? 'متصل' : 'Connected'}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-200/70 px-2 py-0.5 rounded-full">
+                {isRtl ? 'غير متصل' : 'Disconnected'}
+              </span>
+            )}
+          </button>
+
           {/* Refresh Dashboard Button */}
           <button
             onClick={handleRefresh}
@@ -1869,6 +2028,313 @@ export const Analytics: React.FC<AnalyticsProps> = ({
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Meta Graph API Integration Modal */}
+      <AnimatePresence>
+        {isMetaModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-gray-150 overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 md:p-8 border-b border-gray-100 flex items-center justify-between bg-zinc-50/60 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-pink-500 flex items-center justify-center text-white shadow-md shadow-blue-200">
+                    <Globe size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-gray-950 flex items-center gap-2">
+                      <span>{isRtl ? 'الربط المباشر مع Meta Graph API' : 'Meta Graph API Integration'}</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-blue-100 text-blue-800 rounded-lg font-mono">
+                        v21.0
+                      </span>
+                    </h3>
+                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">
+                      {isRtl 
+                        ? 'مزامنة أرقام فيسبوك وإنستغرام الحقيقية 100% مباشرة وتحديث لوحة التحليلات'
+                        : 'Sync 100% verified Facebook & Instagram metrics directly into your analytics ledger'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMetaModalOpen(false)}
+                  className="p-2.5 text-gray-400 hover:bg-gray-100 hover:text-gray-950 rounded-2xl transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="overflow-y-auto flex-1 p-6 md:p-8 space-y-6 custom-scrollbar">
+                
+                {/* Active Connection Banner if connected */}
+                {metaConfig?.status === 'connected' && (
+                  <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      {metaConfig.pagePicture ? (
+                        <img 
+                          src={metaConfig.pagePicture} 
+                          alt="Page Avatar" 
+                          className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-base shadow-sm">
+                          <Facebook size={22} />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-black text-gray-950">
+                            {metaConfig.pageName || (isRtl ? 'صفحة فيسبوك متصلة' : 'Connected Facebook Page')}
+                          </h4>
+                          <span className="flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            <CheckCircle2 size={11} className="text-emerald-600" />
+                            {isRtl ? 'متصل ونشط' : 'Verified'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-semibold text-gray-500 mt-0.5">
+                          {metaConfig.followersCount 
+                            ? `${isRtl ? 'المتابعون:' : 'Audience:'} ${metaConfig.followersCount.toLocaleString()} ${isRtl ? 'متابع' : 'followers'}`
+                            : (isRtl ? 'تم التحقق من الصلاحيات' : 'Permissions granted')}
+                          {metaConfig.igUsername && ` • @${metaConfig.igUsername} (Instagram)`}
+                        </p>
+                        {metaConfig.lastSyncedAt && (
+                          <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+                            {isRtl ? 'آخر مزامنة ناجحة:' : 'Last sync:'} {metaConfig.lastSyncedAt}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSyncMetaNow}
+                      disabled={isSyncingMeta}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
+                    >
+                      <RefreshCw size={13} className={isSyncingMeta ? "animate-spin" : ""} />
+                      <span>{isSyncingMeta ? (isRtl ? 'جاري المزامنة...' : 'Syncing...') : (isRtl ? 'مزامنة فورية الآن' : 'Sync Now')}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Configuration Inputs */}
+                <form onSubmit={handleSaveMetaConfig} className="space-y-4">
+                  {/* Facebook Page ID */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-gray-700 flex items-center gap-1.5">
+                        <Facebook size={14} className="text-blue-600" />
+                        <span>{isRtl ? 'معرف صفحة فيسبوك (Facebook Page ID)' : 'Facebook Page ID'}</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-gray-400">
+                        {isRtl ? 'مثلاً: 104582947192834' : 'e.g., 104582947192834'}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={metaPageId}
+                      onChange={(e) => setMetaPageId(e.target.value)}
+                      placeholder={isRtl ? 'أدخل الـ Page ID الخاص بصفحة كروبسا' : 'Enter Facebook Page ID'}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-xs font-bold outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                    <p className="text-[10px] font-medium text-gray-400">
+                      {isRtl 
+                        ? 'تجد الـ Page ID في صفحة فيسبوك > قسم "حول" (About) > "شفافية الصفحة" أو من الرابط مباشرة.' 
+                        : 'Found in Facebook Page > About > Page Transparency or page URL.'}
+                    </p>
+                  </div>
+
+                  {/* Page Access Token */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-gray-700 flex items-center gap-1.5">
+                        <Key size={14} className="text-amber-600" />
+                        <span>{isRtl ? 'مفتاح الوصول (Page Access Token)' : 'Page Access Token'}</span>
+                      </label>
+                      <a
+                        href="https://developers.facebook.com/tools/explorer/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-black text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <span>{isRtl ? 'أداة Graph API Explorer' : 'Graph API Explorer'}</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    </div>
+                    <textarea
+                      required
+                      value={metaAccessToken}
+                      onChange={(e) => setMetaAccessToken(e.target.value)}
+                      rows={3}
+                      placeholder={isRtl ? 'الصق مفتاح الوصول (يبدأ بـ EAAB... أو EAA...)' : 'Paste Access Token (starts with EAA...)'}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-mono text-xs font-medium outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
+                    <p className="text-[10px] font-medium text-gray-400">
+                      {isRtl 
+                        ? 'يتطلب صلاحيات: pages_show_list, pages_read_engagement, pages_read_user_content (ولإنستغرام: instagram_basic).' 
+                        : 'Required scopes: pages_show_list, pages_read_engagement, pages_read_user_content.'}
+                    </p>
+                  </div>
+
+                  {/* Instagram Business Account ID (Optional) */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-gray-700 flex items-center gap-1.5">
+                        <Instagram size={14} className="text-pink-600" />
+                        <span>{isRtl ? 'معرف حساب إنستغرام للأعمال (اختياري)' : 'Instagram Business Account ID (Optional)'}</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-gray-400">{isRtl ? 'اختياري' : 'Optional'}</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={metaIgUserId}
+                      onChange={(e) => setMetaIgUserId(e.target.value)}
+                      placeholder={isRtl ? 'معرف حساب إنستغرام المرتبط بصفحة فيسبوك' : 'Connected Instagram Business ID'}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-mono text-xs font-bold outline-none focus:bg-white focus:ring-2 focus:ring-pink-500 transition-all"
+                    />
+                  </div>
+
+                  {/* Test Result Message feedback */}
+                  {metaTestResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        "p-4 rounded-2xl text-xs font-bold flex items-start gap-2.5 border",
+                        metaTestResult.success 
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-900" 
+                          : "bg-red-50 border-red-200 text-red-900"
+                      )}
+                    >
+                      {metaTestResult.success ? (
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <p className="font-black">
+                          {metaTestResult.success 
+                            ? (isRtl ? `تم الاتصال بنجاح بصفحة: ${metaTestResult.pageName}` : `Connected: ${metaTestResult.pageName}`) 
+                            : (isRtl ? 'تعذر الاتصال بـ Meta Graph API' : 'Connection Error')}
+                        </p>
+                        {metaTestResult.error && (
+                          <p className="text-[11px] font-normal mt-0.5 text-red-700">
+                            {metaTestResult.error}
+                          </p>
+                        )}
+                        {metaTestResult.success && metaTestResult.instagramAccount && (
+                          <p className="text-[11px] font-medium text-emerald-700 mt-0.5">
+                            {isRtl ? 'تم اكتشاف حساب إنستغرام المرتبط:' : 'Connected Instagram:'} @{metaTestResult.instagramAccount.username}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Form Action Buttons */}
+                  <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={handleTestMetaConnection}
+                      disabled={isTestingMeta}
+                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw size={13} className={isTestingMeta ? "animate-spin text-blue-600" : "text-blue-600"} />
+                      <span>{isTestingMeta ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'اختبار الاتصال' : 'Test Connection')}</span>
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-blue-200 cursor-pointer active:scale-95"
+                    >
+                      {isRtl ? 'حفظ الإعدادات' : 'Save Credentials'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSyncMetaNow}
+                      disabled={isSyncingMeta}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                      <Sparkles size={13} className={isSyncingMeta ? "animate-spin" : ""} />
+                      <span>{isSyncingMeta ? (isRtl ? 'جاري المزامنة...' : 'Syncing...') : (isRtl ? 'مزامنة الأرقام الحقيقية' : 'Sync Live Metrics')}</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Collapsible Step-by-Step Guide */}
+                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50/50">
+                  <button
+                    type="button"
+                    onClick={() => setShowMetaGuide(!showMetaGuide)}
+                    className="w-full p-4 flex items-center justify-between text-left rtl:text-right hover:bg-gray-100/60 transition-colors cursor-pointer"
+                  >
+                    <span className="text-xs font-black text-gray-800 flex items-center gap-2">
+                      <HelpCircle size={15} className="text-blue-600" />
+                      {isRtl ? 'دليل استخراج المفاتيح في 3 خطوات بسيطة من Meta' : 'How to get Meta API credentials in 3 easy steps'}
+                    </span>
+                    {showMetaGuide ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                  </button>
+
+                  {showMetaGuide && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-5 border-t border-gray-200 bg-white space-y-3.5 text-xs text-gray-700 leading-relaxed font-medium"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">1</span>
+                        <div>
+                          <p className="font-bold text-gray-900">{isRtl ? 'إنشاء تطبيق مطور (Meta App):' : 'Create Developer App:'}</p>
+                          <p className="text-gray-500 mt-0.5">
+                            {isRtl 
+                              ? 'ادخل إلى developers.facebook.com، أنشئ حساب مطور، ثم اضغط على "Create App" واختر نوع التطبيق "Business".'
+                              : 'Visit developers.facebook.com, register as a developer, and click "Create App" selecting "Business".'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">2</span>
+                        <div>
+                          <p className="font-bold text-gray-900">{isRtl ? 'استخراج مفتاح الوصول (Page Access Token):' : 'Generate Page Token:'}</p>
+                          <p className="text-gray-500 mt-0.5">
+                            {isRtl 
+                              ? 'افتح أداة Graph API Explorer، اختر تطبيقك من القائمة، ثم في User or Page Token اختر صفحة فيسبوك (Get Page Access Token).'
+                              : 'Open Graph API Explorer tool, select your app, and under User or Page Token select your Page.'}
+                          </p>
+                          <p className="text-[11px] text-blue-600 font-mono mt-1 font-semibold">
+                            {isRtl ? 'أضف الصلاحيات التالية:' : 'Required Permissions:'} pages_show_list, pages_read_engagement, pages_read_user_content, instagram_basic
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">3</span>
+                        <div>
+                          <p className="font-bold text-gray-900">{isRtl ? 'نسخ ولصق المفاتيح واختبار الاتصال:' : 'Copy, Paste & Sync:'}</p>
+                          <p className="text-gray-500 mt-0.5">
+                            {isRtl 
+                              ? 'انسخ الـ Page ID ومفتاح الوصول (Access Token) والصقهما في الحقول أعلاه، ثم اضغط "اختبار الاتصال" ثم "مزامنة الأرقام الحقيقية".'
+                              : 'Paste the Page ID and Access Token above, test the connection, and sync live data instantly.'}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+              </div>
             </motion.div>
           </div>
         )}

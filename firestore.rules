@@ -100,11 +100,32 @@ rules_version = '2';
 //   - order: number (optional, >= 0)
 //
 // Collection: settings
-// Document ID: {settingId} (e.g., 'tab_names', 'init_status')
+// Document ID: {settingId} (e.g., 'tab_names', 'init_status', 'meta_integration')
 // Fields:
 //   - names: list of strings (optional, size <= 50)
 //   - content, materials, events, custom_kpis, competitors, competitors_logs: bool (optional)
 //   - siteName, logo, primaryColor: string (optional)
+//   - metaPageId, metaPageName, metaAccessToken, metaIgUserId, metaIgUsername, metaLastSync, metaStatus: string (optional)
+//   - meta: map (optional, size <= 20)
+//   - pageId, pageName, pagePicture, accessToken, igUserId, igUsername, lastSyncedAt, status, updatedAt: string (optional)
+//   - followersCount: number (optional, >= 0)
+//   - provider: string (optional, 'meta' | 'tiktok' | 'google' | 'other')
+//
+// Collection: integrations
+// Document ID: {integrationId} (matches integration id, e.g., 'meta', 'tiktok', 'google')
+// Fields:
+//   - id: string (optional, 1-100 chars, immutable)
+//   - provider: string (optional, 'meta' | 'tiktok' | 'google' | 'other')
+//   - pageId: string (optional, 0-200 chars)
+//   - pageName: string (optional, 0-200 chars)
+//   - pagePicture: string (optional, 0-2000 chars)
+//   - accessToken: string (optional, 0-2000 chars)
+//   - igUserId: string (optional, 0-200 chars)
+//   - igUsername: string (optional, 0-200 chars)
+//   - lastSyncedAt: string (optional, 0-100 chars)
+//   - status: string (optional, 0-50 chars)
+//   - followersCount: number (optional, >= 0)
+//   - updatedAt: string (optional, 0-100 chars)
 //
 // Collection: competitors
 // Document ID: {competitorId} (matches competitor id)
@@ -308,8 +329,13 @@ service cloud.firestore {
     function isValidSetting(data) {
       let allowed = [
         'names', 'content', 'materials', 'events', 'custom_kpis', 
-        'competitors', 'competitors_logs', 'siteName', 'logo', 'primaryColor'
+        'competitors', 'competitors_logs', 'siteName', 'logo', 'primaryColor',
+        'metaPageId', 'metaPageName', 'metaAccessToken', 'metaIgUserId', 'metaIgUsername', 
+        'metaLastSync', 'metaStatus', 'meta',
+        'pageId', 'pageName', 'pagePicture', 'accessToken', 'igUserId', 
+        'igUsername', 'lastSyncedAt', 'status', 'followersCount', 'updatedAt', 'provider'
       ];
+      let validProviders = ['meta', 'tiktok', 'google', 'other'];
       return data.keys().hasOnly(allowed) &&
         (!('names' in data) || (data.names is list && data.names.size() <= 50)) &&
         (!('content' in data) || data.content is bool) &&
@@ -320,7 +346,47 @@ service cloud.firestore {
         (!('competitors_logs' in data) || data.competitors_logs is bool) &&
         (!('siteName' in data) || (data.siteName is string && data.siteName.size() <= 100)) &&
         (!('logo' in data) || (data.logo is string && data.logo.size() <= 1000)) &&
-        (!('primaryColor' in data) || (data.primaryColor is string && data.primaryColor.size() <= 50));
+        (!('primaryColor' in data) || (data.primaryColor is string && data.primaryColor.size() <= 50)) &&
+        (!('metaPageId' in data) || (data.metaPageId is string && data.metaPageId.size() <= 200)) &&
+        (!('metaPageName' in data) || (data.metaPageName is string && data.metaPageName.size() <= 200)) &&
+        (!('metaAccessToken' in data) || (data.metaAccessToken is string && data.metaAccessToken.size() <= 2000)) &&
+        (!('metaIgUserId' in data) || (data.metaIgUserId is string && data.metaIgUserId.size() <= 200)) &&
+        (!('metaIgUsername' in data) || (data.metaIgUsername is string && data.metaIgUsername.size() <= 200)) &&
+        (!('metaLastSync' in data) || (data.metaLastSync is string && data.metaLastSync.size() <= 100)) &&
+        (!('metaStatus' in data) || (data.metaStatus is string && data.metaStatus.size() <= 50)) &&
+        (!('meta' in data) || (data.meta is map && data.meta.size() <= 20)) &&
+        (!('pageId' in data) || (data.pageId is string && data.pageId.size() <= 200)) &&
+        (!('pageName' in data) || (data.pageName is string && data.pageName.size() <= 200)) &&
+        (!('pagePicture' in data) || (data.pagePicture is string && data.pagePicture.size() <= 2000)) &&
+        (!('accessToken' in data) || (data.accessToken is string && data.accessToken.size() <= 2000)) &&
+        (!('igUserId' in data) || (data.igUserId is string && data.igUserId.size() <= 200)) &&
+        (!('igUsername' in data) || (data.igUsername is string && data.igUsername.size() <= 200)) &&
+        (!('lastSyncedAt' in data) || (data.lastSyncedAt is string && data.lastSyncedAt.size() <= 100)) &&
+        (!('status' in data) || (data.status is string && data.status.size() <= 50)) &&
+        (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100)) &&
+        (!('provider' in data) || (data.provider is string && data.provider in validProviders));
+    }
+
+    function isValidIntegration(data) {
+      let allowed = [
+        'id', 'provider', 'pageId', 'pageName', 'pagePicture', 'accessToken',
+        'igUserId', 'igUsername', 'lastSyncedAt', 'status', 'followersCount', 'updatedAt'
+      ];
+      let validProviders = ['meta', 'tiktok', 'google', 'other'];
+      return data.keys().hasOnly(allowed) &&
+        (!('id' in data) || (data.id is string && data.id.size() >= 1 && data.id.size() <= 100)) &&
+        (!('provider' in data) || (data.provider is string && data.provider in validProviders)) &&
+        (!('pageId' in data) || (data.pageId is string && data.pageId.size() <= 200)) &&
+        (!('pageName' in data) || (data.pageName is string && data.pageName.size() <= 200)) &&
+        (!('pagePicture' in data) || (data.pagePicture is string && data.pagePicture.size() <= 2000)) &&
+        (!('accessToken' in data) || (data.accessToken is string && data.accessToken.size() <= 2000)) &&
+        (!('igUserId' in data) || (data.igUserId is string && data.igUserId.size() <= 200)) &&
+        (!('igUsername' in data) || (data.igUsername is string && data.igUsername.size() <= 200)) &&
+        (!('lastSyncedAt' in data) || (data.lastSyncedAt is string && data.lastSyncedAt.size() <= 100)) &&
+        (!('status' in data) || (data.status is string && data.status.size() <= 50)) &&
+        (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100));
     }
 
     function isValidCompetitor(data) {
@@ -430,6 +496,19 @@ service cloud.firestore {
       allow create, update: if isAuthenticated() && isValidSetting(request.resource.data) &&
         (isAdmin() || isManager());
       allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Integrations collection
+    match /integrations/{integrationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidIntegration(request.resource.data) &&
+        (!('id' in request.resource.data) || request.resource.data.id == integrationId) &&
+        (isAdmin() || isManager());
+      allow update: if isAuthenticated() && isValidIntegration(request.resource.data) &&
+        (!('id' in request.resource.data) || request.resource.data.id == integrationId) &&
+        (!('id' in resource.data) || ('id' in request.resource.data && request.resource.data.id == resource.data.id)) &&
+        (isAdmin() || isManager());
+      allow delete: if isAuthenticated() && (isAdmin() || isManager());
     }
 
     // Competitors collection

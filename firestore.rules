@@ -115,6 +115,7 @@ rules_version = '2';
 //   - platform: string (required, 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok' | 'WhatsApp' | 'Other')
 //   - noteEn: string (optional, 0-2000 chars)
 //   - noteAr: string (optional, 0-2000 chars)
+//   - url: string (optional, 0-2000 chars)
 //
 // Collection: competitors_logs
 // Document ID: {logId} (matches log id)
@@ -323,7 +324,7 @@ service cloud.firestore {
     }
 
     function isValidCompetitor(data) {
-      let allowed = ['id', 'name', 'nameAr', 'platform', 'noteEn', 'noteAr'];
+      let allowed = ['id', 'name', 'nameAr', 'platform', 'noteEn', 'noteAr', 'url'];
       let validPlatforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'WhatsApp', 'Other'];
       return data.keys().hasOnly(allowed) &&
         data.keys().hasAll(['id', 'name', 'platform']) &&
@@ -332,7 +333,8 @@ service cloud.firestore {
         (!('nameAr' in data) || (data.nameAr is string && data.nameAr.size() <= 200)) &&
         data.platform in validPlatforms &&
         (!('noteEn' in data) || (data.noteEn is string && data.noteEn.size() <= 2000)) &&
-        (!('noteAr' in data) || (data.noteAr is string && data.noteAr.size() <= 2000));
+        (!('noteAr' in data) || (data.noteAr is string && data.noteAr.size() <= 2000)) &&
+        (!('url' in data) || (data.url is string && data.url.size() <= 2000));
     }
 
     function isValidCompetitorLog(data) {

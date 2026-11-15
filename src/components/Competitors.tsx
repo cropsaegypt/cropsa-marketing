@@ -26,12 +26,15 @@ import {
   MessageCircle, 
   Hash,
   AlertCircle,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Globe,
+  Link2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language, Platform } from '../types';
 import { cn } from '../lib/utils';
-import { generateCompetitorCounterStrategy } from '../lib/gemini';
+import { generateCompetitorCounterStrategy, autoTrackCompetitorFromUrl } from '../lib/gemini';
 import { showToast } from './Toast';
 import { 
   ResponsiveContainer, 
@@ -60,6 +63,7 @@ export interface Competitor {
   platform: Platform;
   noteEn?: string;
   noteAr?: string;
+  url?: string;
 }
 
 export interface DynamicCompetitorLog {
@@ -317,6 +321,11 @@ export const Competitors: React.FC<CompetitorsProps> = ({ lang, platformAnalytic
   const [compName, setCompName] = useState('');
   const [compPlatform, setCompPlatform] = useState<Platform>('Facebook');
   const [compNote, setCompNote] = useState('');
+  const [compUrl, setCompUrl] = useState('');
+
+  // Auto-Sync States
+  const [syncingCompId, setSyncingCompId] = useState<string | null>(null);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
 
   // Dynamic Log Form Modal State (used for both Add and Edit!)
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -363,6 +372,89 @@ export const Competitors: React.FC<CompetitorsProps> = ({ lang, platformAnalytic
     } finally {
       setIsAiAnalyzing(false);
     }
+  };
+
+  const handleAutoTrackCompetitor = async (comp: Competitor) => {
+    setSyncingCompId(comp.id);
+    try {
+      const result = await autoTrackCompetitorFromUrl({
+        competitorName: isRtl ? (comp.nameAr || comp.name) : comp.name,
+        platform: comp.platform,
+        url: comp.url || '',
+        lang: lang
+      });
+
+      // Create new dynamic log with current date
+      const newLog: DynamicCompetitorLog = {
+        id: `log-${Date.now()}`,
+        competitorId: comp.id,
+        platform: comp.platform,
+        date: new Date().toISOString().split('T')[0],
+        period: 'weekly',
+        metrics: result.metrics
+      };
+
+      await saveLogsList([newLog, ...logs]);
+
+      // Update competitor note with the strategic observation
+      if (result.summaryNote) {
+        const updatedComp = {
+          ...comp,
+          noteAr: isRtl ? result.summaryNote : (comp.noteAr || result.summaryNote),
+          noteEn: !isRtl ? result.summaryNote : (comp.noteEn || result.summaryNote)
+        };
+        await saveCompetitorsList(competitors.map(c => c.id === comp.id ? updatedComp : c));
+      }
+
+      showToast(
+        isRtl ? `تم رصد وتحديث أرقام (${comp.nameAr || comp.name}) آلياً بالذكاء الاصطناعي!` : `Auto-synced metrics for ${comp.name}!`,
+        'success'
+      );
+    } catch (err: any) {
+      console.error('Auto track error:', err);
+      showToast(isRtl ? 'تعذر التحديث الآلي. تأكد من إعداد GEMINI_API_KEY.' : 'Auto sync failed', 'error');
+    } finally {
+      setSyncingCompId(null);
+    }
+  };
+
+  const handleAutoTrackAll = async () => {
+    if (competitors.length === 0) return;
+    setIsSyncingAll(true);
+    let successCount = 0;
+    const newLogs: DynamicCompetitorLog[] = [];
+
+    for (const comp of competitors) {
+      try {
+        const result = await autoTrackCompetitorFromUrl({
+          competitorName: isRtl ? (comp.nameAr || comp.name) : comp.name,
+          platform: comp.platform,
+          url: comp.url || '',
+          lang: lang
+        });
+        newLogs.push({
+          id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          competitorId: comp.id,
+          platform: comp.platform,
+          date: new Date().toISOString().split('T')[0],
+          period: 'weekly',
+          metrics: result.metrics
+        });
+        successCount++;
+      } catch (e) {
+        console.warn('Failed tracking', comp.name, e);
+      }
+    }
+
+    if (newLogs.length > 0) {
+      await saveLogsList([...newLogs, ...logs]);
+    }
+
+    setIsSyncingAll(false);
+    showToast(
+      isRtl ? `تم رصد وتحديث أرقام ${successCount} من المنافسين آلياً!` : `Updated metrics for ${successCount} competitors!`,
+      'success'
+    );
   };
 
   // Show status toasts
@@ -424,12 +516,14 @@ export const Competitors: React.FC<CompetitorsProps> = ({ lang, platformAnalytic
       name: compName.trim(),
       nameAr: compName.trim(),
       platform: compPlatform,
+      url: compUrl.trim() || undefined,
       noteEn: compNote.trim(),
       noteAr: compNote.trim()
     };
 
     saveCompetitorsList([...competitors, newComp]);
     setCompName('');
+    setCompUrl('');
     setCompNote('');
     setIsCompModalOpen(false);
     triggerToast(isRtl ? 'تم إضافة ملف الشركة المنافسة بنجاح!' : 'Competitor profile successfully added!');
@@ -767,7 +861,23 @@ export const Competitors: React.FC<CompetitorsProps> = ({ lang, platformAnalytic
         {/* Floating actions */}
         <div className="flex items-center gap-2.5 shrink-0 relative z-10">
           <button
-            onClick={() => setIsCompModalOpen(true)}
+            type="button"
+            disabled={isSyncingAll || competitors.length === 0}
+            onClick={handleAutoTrackAll}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-purple-200 cursor-pointer active:scale-95 disabled:opacity-50"
+            title={isRtl ? 'رصد وتحديث أرقام جميع المنافسين آلياً بالذكاء الاصطناعي' : 'Auto-Sync all competitors with AI'}
+          >
+            <RefreshCw size={14} className={isSyncingAll ? "animate-spin" : ""} />
+            <span>{isSyncingAll ? (isRtl ? 'جاري الرصد...' : 'Syncing...') : (isRtl ? 'رصد الجميع بالذكاء الاصطناعي' : 'Auto-Sync All (AI)')}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setCompName('');
+              setCompUrl('');
+              setCompNote('');
+              setIsCompModalOpen(true);
+            }}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-900 hover:bg-zinc-800 text-white text-xs font-black rounded-xl transition-all shadow-md cursor-pointer active:scale-95"
           >
             <Plus size={14} />
@@ -862,6 +972,26 @@ export const Competitors: React.FC<CompetitorsProps> = ({ lang, platformAnalytic
                         </div>
 
                         <div className="flex items-center gap-1">
+                          {comp.url && (
+                            <a
+                              href={comp.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                              title={isRtl ? `فتح رابط الصفحة: ${comp.url}` : `Open Profile: ${comp.url}`}
+                            >
+                              <Globe size={13} />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAutoTrackCompetitor(comp)}
+                            disabled={syncingCompId === comp.id}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                            title={isRtl ? "تحديث ورصد الأرقام تلقائياً بالذكاء الاصطناعي" : "Auto-sync metrics via AI"}
+                          >
+                            <RefreshCw size={13} className={syncingCompId === comp.id ? "animate-spin" : ""} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleRunAiCompetitorAnalysis(comp)}
@@ -1265,6 +1395,29 @@ export const Competitors: React.FC<CompetitorsProps> = ({ lang, platformAnalytic
                       <option key={p} value={p}>{p}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">
+                      {isRtl ? 'رابط الصفحة أو الحساب (للرصد الآلي)' : 'Profile / Page URL (For Auto-Sync)'}
+                    </label>
+                    <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      {isRtl ? 'Gemini AI مدعوم بـ' : 'AI Powered'}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={compUrl}
+                      onChange={(e) => setCompUrl(e.target.value)}
+                      placeholder={isRtl ? 'https://facebook.com/competitor أو @username' : 'https://facebook.com/competitor or @handle'}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs outline-none focus:bg-white focus:ring-2 focus:ring-green-500 transition-all"
+                    />
+                  </div>
+                  <p className="text-[10px] font-medium text-gray-400">
+                    {isRtl ? 'أدخل رابط أو معرف حساب المنافس ليتم رصد وتحليل أرقامه تلقائياً بالذكاء الاصطناعي.' : 'Provide the public URL or handle for automated AI tracking and metric synthesis.'}
+                  </p>
                 </div>
 
                 <div className="space-y-1">

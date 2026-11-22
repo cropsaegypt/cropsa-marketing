@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -16,8 +16,11 @@ import {
   X,
   Check,
   Settings2,
-  Layers
+  Layers,
+  LayoutGrid,
+  CalendarClock
 } from 'lucide-react';
+import { KanbanAgenda } from './KanbanAgenda';
 import { 
   DndContext, 
   closestCorners, 
@@ -41,13 +44,14 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { translations } from '../translations';
-import { ContentItem, Language, ContentStatus, Platform, Priority, Task, KanbanStage } from '../types';
+import { ContentItem, Language, ContentStatus, Platform, Priority, Task, KanbanStage, User } from '../types';
 import { cn } from '../lib/utils';
 
 interface KanbanProps {
   lang: Language;
   content: ContentItem[];
   stages: KanbanStage[];
+  users?: User[];
   onUpdateStages: (stages: KanbanStage[]) => void;
   onUpdateStatus: (id: string, status: ContentStatus, stageId?: string, newOrderIds?: string[]) => void;
   onUpdateTasks: (id: string, tasks: Task[]) => void;
@@ -401,6 +405,7 @@ export const Kanban: React.FC<KanbanProps> = ({
   lang, 
   content, 
   stages, 
+  users = [],
   onUpdateStages, 
   onUpdateStatus, 
   onUpdateTasks, 
@@ -408,6 +413,7 @@ export const Kanban: React.FC<KanbanProps> = ({
   onNewContent 
 }) => {
   const t = translations[lang];
+  const [viewMode, setViewMode] = useState<'board' | 'agenda'>('board');
   const [activePlatform, setActivePlatform] = useState<Platform | 'All'>('All');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingStage, setEditingStage] = useState<string | null>(null);
@@ -416,6 +422,23 @@ export const Kanban: React.FC<KanbanProps> = ({
   const isRtl = lang === 'ar';
 
   const [localContent, setLocalContent] = useState<ContentItem[]>(content);
+
+  // Compute overdue count for badge on Agenda button
+  const overdueCount = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return localContent.filter(c => {
+      if (!c.dueDate) return false;
+      const clean = c.dueDate.split('T')[0];
+      const parts = clean.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        return !isNaN(d.getTime()) && d.getTime() < today.getTime();
+      }
+      const d = new Date(c.dueDate);
+      return !isNaN(d.getTime()) && d.getTime() < today.getTime();
+    }).length;
+  }, [localContent]);
 
   // Keep localContent up to date with fresh content prop when not actively dragging
   useEffect(() => {
@@ -574,120 +597,171 @@ export const Kanban: React.FC<KanbanProps> = ({
 
   return (
     <div className="h-full flex flex-col space-y-6 overflow-hidden" dir={isRtl ? 'rtl' : 'ltr'}>
-      {/* Platform Tabs & Stage Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-        <div className="flex bg-gray-100 p-1 rounded-2xl self-start flex-wrap gap-1">
-          {(['All', 'Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'WhatsApp'] as (Platform | 'All')[]).map((p) => {
-            const Icon = p === 'All' ? Layers : PLATFORM_ICONS[p as Platform];
-            const nameToDisplay = p === 'All' ? (isRtl ? 'عام' : 'General') : p;
-            return (
+      {/* Platform Tabs & View Switcher & Stage Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* View Mode Toggle: Board vs Agenda */}
+          <div className="flex bg-gray-200/80 p-1 rounded-2xl items-center gap-1 shadow-inner">
+            <button
+              onClick={() => setViewMode('board')}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all cursor-pointer",
+                viewMode === 'board'
+                  ? "bg-white text-green-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              <LayoutGrid size={16} />
+              <span>{isRtl ? 'الأعمدة' : 'Board'}</span>
+            </button>
+            <button
+              onClick={() => setViewMode('agenda')}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all cursor-pointer relative",
+                viewMode === 'agenda'
+                  ? "bg-white text-emerald-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              <CalendarClock size={16} />
+              <span>{isRtl ? 'أجندة' : 'Agenda'}</span>
+              {overdueCount > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse shadow-sm">
+                  {overdueCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Platform Tabs */}
+          <div className="flex bg-gray-100 p-1 rounded-2xl flex-wrap gap-1">
+            {(['All', 'Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'WhatsApp'] as (Platform | 'All')[]).map((p) => {
+              const Icon = p === 'All' ? Layers : PLATFORM_ICONS[p as Platform];
+              const nameToDisplay = p === 'All' ? (isRtl ? 'عام' : 'General') : p;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setActivePlatform(p)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all cursor-pointer",
+                    activePlatform === p 
+                      ? "bg-white text-green-700 shadow-sm" 
+                      : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  <Icon size={16} />
+                  <span className="hidden sm:inline">{nameToDisplay}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {viewMode === 'board' && (
+          <button 
+            onClick={handleAddStage}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-2xl text-xs md:text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm self-start lg:self-auto cursor-pointer"
+          >
+            <Plus size={18} />
+            {isRtl ? 'إضافة مرحلة' : 'Add Stage'}
+          </button>
+        )}
+      </div>
+
+      {viewMode === 'agenda' ? (
+        <KanbanAgenda
+          lang={lang}
+          content={filteredContent}
+          stages={stages}
+          users={users}
+          onOpenDetail={onOpenDetail}
+          onNewContent={onNewContent}
+        />
+      ) : (
+        <>
+          {/* Mobile Stage Tabs */}
+          <div className="flex lg:hidden bg-gray-100 p-1 rounded-2xl overflow-x-auto no-scrollbar shrink-0">
+            {stages.map((stage) => (
               <button
-                key={p}
-                onClick={() => setActivePlatform(p)}
+                key={stage.id}
+                onClick={() => {
+                  setActiveStageId(stage.id);
+                  const el = document.getElementById(`column-${stage.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  }
+                }}
                 className={cn(
-                  "flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer",
-                  activePlatform === p 
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0",
+                  activeStageId === stage.id 
                     ? "bg-white text-green-700 shadow-sm" 
                     : "text-gray-500 hover:text-gray-900"
                 )}
               >
-                <Icon size={18} />
-                <span className="hidden sm:inline">{nameToDisplay}</span>
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                {isRtl ? (stage.nameAr || stage.name) : stage.name}
+                <span className="bg-gray-200 text-gray-500 text-[8px] px-1.5 rounded-full ml-1">
+                  {filteredContent.filter(c => c.stageId === stage.id || (!c.stageId && c.status === stage.status)).length}
+                </span>
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
 
-        <button 
-          onClick={handleAddStage}
-          className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm"
-        >
-          <Plus size={18} />
-          {isRtl ? 'إضافة مرحلة' : 'Add Stage'}
-        </button>
-      </div>
-
-      {/* Mobile Stage Tabs */}
-      <div className="flex lg:hidden bg-gray-100 p-1 rounded-2xl overflow-x-auto no-scrollbar shrink-0">
-        {stages.map((stage) => (
-          <button
-            key={stage.id}
-            onClick={() => {
-              setActiveStageId(stage.id);
-              const el = document.getElementById(`column-${stage.id}`);
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              }
-            }}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0",
-              activeStageId === stage.id 
-                ? "bg-white text-green-700 shadow-sm" 
-                : "text-gray-500 hover:text-gray-900"
-            )}
+          {/* Kanban Board */}
+          <DndContext 
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
           >
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
-            {isRtl ? (stage.nameAr || stage.name) : stage.name}
-            <span className="bg-gray-200 text-gray-500 text-[8px] px-1.5 rounded-full ml-1">
-              {filteredContent.filter(c => c.stageId === stage.id || (!c.stageId && c.status === stage.status)).length}
-            </span>
-          </button>
-        ))}
-      </div>
+            <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar w-full">
+              <SortableContext items={stages.map(s => s.id)} strategy={horizontalListSortingStrategy}>
+                <div className={cn("flex gap-6 h-full min-w-max pb-2", isRtl && "flex-row-reverse")}>
+                  {stages.map((stage) => (
+                    <KanbanColumn 
+                      key={stage.id}
+                      stage={stage}
+                      filteredContent={filteredContent}
+                      editingStage={editingStage}
+                      setEditingStage={setEditingStage}
+                      newStageName={newStageName}
+                      setNewStageName={setNewStageName}
+                      handleRenameStage={handleRenameStage}
+                      handleDeleteStage={handleDeleteStage}
+                      onOpenDetail={onOpenDetail}
+                      isRtl={isRtl}
+                      t={t}
+                      onNewContent={onNewContent}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </div>
 
-      {/* Kanban Board */}
-      <DndContext 
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar w-full">
-          <SortableContext items={stages.map(s => s.id)} strategy={horizontalListSortingStrategy}>
-            <div className={cn("flex gap-6 h-full min-w-max pb-2", isRtl && "flex-row-reverse")}>
-              {stages.map((stage) => (
-                <KanbanColumn 
-                  key={stage.id}
-                  stage={stage}
-                  filteredContent={filteredContent}
-                  editingStage={editingStage}
-                  setEditingStage={setEditingStage}
-                  newStageName={newStageName}
-                  setNewStageName={setNewStageName}
-                  handleRenameStage={handleRenameStage}
-                  handleDeleteStage={handleDeleteStage}
-                  onOpenDetail={onOpenDetail}
-                  isRtl={isRtl}
-                  t={t}
-                  onNewContent={onNewContent}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </div>
-
-        <DragOverlay dropAnimation={{
-          sideEffects: defaultDropAnimationSideEffects({
-            styles: {
-              active: {
-                opacity: '0.5',
-              },
-            },
-          }),
-        }}>
-          {activeItem ? (
-            <div className="bg-white p-4 rounded-2xl border-2 border-green-500 shadow-xl w-80 rotate-3 opacity-90">
-              <h4 className="font-bold text-sm mb-2">{activeItem.title}</h4>
-              <p className="text-xs text-gray-500 line-clamp-2">{activeItem.description || activeItem.caption}</p>
-            </div>
-          ) : activeId && stages.find(s => s.id === activeId) ? (
-            <div className="w-80 h-32 bg-gray-200 rounded-[2rem] border-2 border-dashed border-gray-300 opacity-50 flex items-center justify-center">
-               <span className="font-bold text-gray-400">{stages.find(s => s.id === activeId)?.name}</span>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+            <DragOverlay dropAnimation={{
+              sideEffects: defaultDropAnimationSideEffects({
+                styles: {
+                  active: {
+                    opacity: '0.5',
+                  },
+                },
+              }),
+            }}>
+              {activeItem ? (
+                <div className="bg-white p-4 rounded-2xl border-2 border-green-500 shadow-xl w-80 rotate-3 opacity-90">
+                  <h4 className="font-bold text-sm mb-2">{activeItem.title}</h4>
+                  <p className="text-xs text-gray-500 line-clamp-2">{activeItem.description || activeItem.caption}</p>
+                </div>
+              ) : activeId && stages.find(s => s.id === activeId) ? (
+                <div className="w-80 h-32 bg-gray-200 rounded-[2rem] border-2 border-dashed border-gray-300 opacity-50 flex items-center justify-center">
+                   <span className="font-bold text-gray-400">{stages.find(s => s.id === activeId)?.name}</span>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </>
+      )}
     </div>
   );
 };

@@ -954,6 +954,7 @@ export default function App() {
                 lang={lang} 
                 content={content} 
                 stages={stages}
+                users={users}
                 onUpdateStages={setStages}
                 onUpdateStatus={handleUpdateStatus}
                 onUpdateTasks={handleUpdateTasks}

@@ -36,16 +36,16 @@ rules_version = '2';
 //   - type: string (optional, 'Post' | 'Reel' | 'Story' | 'Video' | 'Image' | 'Carousel' | 'Hybrid')
 //   - assignedTo: list of strings (optional, size <= 20)
 //   - createdBy: string (optional, 0-100 chars)
-//   - mediaUrl: string (optional, 0-2000 chars)
+//   - mediaUrl: string (optional, 0-1000000 chars)
 //   - week: string (optional, 0-50 chars)
 //   - stageId: string (optional, nullable, 0-50 chars)
 //   - notes: string (optional, 0-2000 chars)
 //   - paid: bool (optional)
 //   - tasks: list of maps (optional, size <= 100)
 //   - comments: list of maps (optional, size <= 200)
-//   - attachments: list of maps (optional, size <= 50)
+//   - attachments: list of maps (optional, size <= 50, item url up to 1000000 chars)
 //   - labels: list of strings (optional, size <= 20)
-//   - results: list of maps (optional, size <= 50)
+//   - results: list of maps (optional, size <= 50, item url up to 1000000 chars)
 //   - preparationDate: string (optional, 0-50 chars)
 //   - isExternal: bool (optional)
 //   - externalUrl: string (optional, 0-2000 chars)
@@ -59,7 +59,7 @@ rules_version = '2';
 //   - id: string (required, 1-100 chars, immutable)
 //   - name: string (required, 1-200 chars)
 //   - type: string (required, 'Image' | 'Video' | 'Document' | 'Link')
-//   - url: string (required, 1-2000 chars)
+//   - url: string (required, 1-1000000 chars)
 //   - addedDate: string (required, 1-50 chars)
 //   - size: string (optional, 0-50 chars)
 //   - folderId: string (optional, 0-100 chars)
@@ -248,7 +248,7 @@ service cloud.firestore {
         (!('type' in data) || data.type in validTypes) &&
         (!('assignedTo' in data) || (data.assignedTo is list && data.assignedTo.size() <= 20)) &&
         (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 100)) &&
-        (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 2000)) &&
+        (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 1000000)) &&
         (!('week' in data) || (data.week is string && data.week.size() <= 50)) &&
         (!('stageId' in data) || data.stageId == null || (data.stageId is string && data.stageId.size() <= 50)) &&
         (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
@@ -274,7 +274,7 @@ service cloud.firestore {
         data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
         data.type in validTypes &&
-        data.url is string && data.url.size() >= 1 && data.url.size() <= 2000 &&
+        data.url is string && data.url.size() >= 1 && data.url.size() <= 1000000 &&
         data.addedDate is string && data.addedDate.size() >= 1 && data.addedDate.size() <= 50 &&
         (!('size' in data) || (data.size is string && data.size.size() <= 50)) &&
         (!('folderId' in data) || (data.folderId is string && data.folderId.size() <= 100));

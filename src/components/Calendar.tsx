@@ -70,7 +70,7 @@ export const Calendar: React.FC<CalendarProps> = ({
   onUpdateItem
 }) => {
   const t = translations[lang];
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // March 2026
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const [view, setView] = useState<'month' | 'week'>('month');
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | 'All'>('All');
   
@@ -83,12 +83,14 @@ export const Calendar: React.FC<CalendarProps> = ({
   const [selectedKanbanId, setSelectedKanbanId] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newPlatform, setNewPlatform] = useState<Platform>('Facebook');
-  const [newDate, setNewDate] = useState('2026-03-01');
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newTuv, setNewTuv] = useState('');
   const [newCaption, setNewCaption] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newExternalUrl, setNewExternalUrl] = useState('');
   const [newUploadFile, setNewUploadFile] = useState<any>(null);
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [imageInputMode, setImageInputMode] = useState<'upload' | 'url'>('upload');
   
   // Quick copy toast representation
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
@@ -261,6 +263,21 @@ export const Calendar: React.FC<CalendarProps> = ({
   const handleAddPublishItem = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const finalMediaUrl = (imageInputMode === 'url' && newImageUrl.trim())
+        ? newImageUrl.trim()
+        : (newUploadFile?.url || '');
+
+      const attachmentsList: any[] = [];
+      if (finalMediaUrl) {
+        attachmentsList.push({
+          id: 'att-' + Math.random().toString(36).substr(2, 9),
+          name: newUploadFile?.name || (isRtl ? 'صورة الغلاف' : 'Cover Image'),
+          url: finalMediaUrl,
+          type: 'image',
+          date: new Date().toISOString()
+        });
+      }
+
       if (isExternalType) {
         // Create manual external content item
         const id = 'external-' + Math.random().toString(36).substr(2, 9);
@@ -271,6 +288,7 @@ export const Calendar: React.FC<CalendarProps> = ({
           isExternal: true,
           scheduledInPublishing: true,
           externalUrl: newExternalUrl || '',
+          mediaUrl: finalMediaUrl,
           tuv: newTuv || '',
           type: 'Post',
           caption: newCaption || '',
@@ -286,8 +304,8 @@ export const Calendar: React.FC<CalendarProps> = ({
           priority: 'Normal',
           tasks: [],
           comments: [],
-          attachments: [],
-          results: newUploadFile ? [newUploadFile] : []
+          attachments: attachmentsList,
+          results: newUploadFile ? [newUploadFile] : (finalMediaUrl ? attachmentsList : [])
         };
         await setDoc(doc(db, 'content', id), externalItem);
       } else {
@@ -295,14 +313,19 @@ export const Calendar: React.FC<CalendarProps> = ({
         if (!selectedKanbanId) return;
         const matched = content.find(item => item.id === selectedKanbanId);
         if (matched && onUpdateItem) {
-          onUpdateItem(matched.id, {
+          const updates: any = {
             dueDate: newDate,
             publishDate: newDate,
             platforms: [newPlatform],
             status: matched.status === 'Idea' ? 'Scheduled' : matched.status,
             stageId: matched.stageId === 'stage-idea' ? 'stage-5' : matched.stageId,
             scheduledInPublishing: true
-          });
+          };
+          if (finalMediaUrl) {
+            updates.mediaUrl = finalMediaUrl;
+            updates.attachments = [...(matched.attachments || []), ...attachmentsList];
+          }
+          onUpdateItem(matched.id, updates);
         }
       }
       // Reset form
@@ -312,7 +335,9 @@ export const Calendar: React.FC<CalendarProps> = ({
       setNewDescription('');
       setNewExternalUrl('');
       setNewUploadFile(null);
+      setNewImageUrl('');
       setSelectedKanbanId('');
+      setNewDate(new Date().toISOString().split('T')[0]);
       setIsAddModalOpen(false);
     } catch (err) {
       console.error('Error saving publish item:', err);
@@ -534,6 +559,15 @@ export const Calendar: React.FC<CalendarProps> = ({
               <ChevronRight size={18} className={isRtl ? "rotate-180" : ""} />
             </button>
           </div>
+
+          <button 
+            type="button"
+            onClick={() => setCurrentDate(new Date())}
+            className="px-4 py-2 bg-white hover:bg-emerald-50 border border-gray-200 hover:border-emerald-300 rounded-[1.5rem] text-xs font-black text-emerald-700 shadow-sm transition-all cursor-pointer active:scale-95"
+            title={isRtl ? 'الرجوع لتاريخ اليوم الحالي' : 'Jump to Today'}
+          >
+            {isRtl ? 'اليوم' : 'Today'}
+          </button>
 
           <button 
             type="button"
@@ -1354,23 +1388,73 @@ export const Calendar: React.FC<CalendarProps> = ({
                       />
                     </div>
 
-                    {/* Deliverable Material file */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase block">{isRtl ? 'المواد والنتائج (رفع ماتريال)' : 'Attach Material (File)'}</label>
-                      <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-350 hover:border-green-500 rounded-xl text-xs font-black text-gray-500 hover:text-green-700 bg-gray-50 cursor-pointer transition-all">
-                        <Upload size={13} />
-                        <span>{newUploadFile ? `✓ ${newUploadFile.name}` : (isRtl ? 'انقر لرفع الماتريال فوراً' : 'Select deliverables file')}</span>
-                        <input 
-                          type="file" 
-                          accept="image/*,application/pdf"
-                          onChange={handleBase64Upload}
-                          className="hidden" 
-                        />
-                      </label>
+                    {/* Deliverable Material: File or Direct URL */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-gray-400 uppercase block">
+                          {isRtl ? 'المواد والتصميم (صورة أو ملف)' : 'Deliverables & Creative (Image / File)'}
+                        </label>
+                        <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[10px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => setImageInputMode('upload')}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                              imageInputMode === 'upload' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                            )}
+                          >
+                            {isRtl ? 'رفع ملف' : 'Upload File'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setImageInputMode('url')}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                              imageInputMode === 'url' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                            )}
+                          >
+                            {isRtl ? 'رابط صورة (URL)' : 'Image Link'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {imageInputMode === 'upload' ? (
+                        <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-gray-350 hover:border-green-500 rounded-xl text-xs font-black text-gray-500 hover:text-green-700 bg-gray-50 cursor-pointer transition-all">
+                          <Upload size={13} />
+                          <span>{newUploadFile ? `✓ ${newUploadFile.name}` : (isRtl ? 'انقر لرفع الماتريال فوراً' : 'Select deliverables file')}</span>
+                          <input 
+                            type="file" 
+                            accept="image/*,application/pdf"
+                            onChange={handleBase64Upload}
+                            className="hidden" 
+                          />
+                        </label>
+                      ) : (
+                        <div className="space-y-2">
+                          <input
+                            type="url"
+                            value={newImageUrl}
+                            onChange={(e) => setNewImageUrl(e.target.value)}
+                            placeholder={isRtl ? 'https://example.com/image.jpg (رابط مباشر للصورة)' : 'https://example.com/image.jpg'}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-1 focus:ring-green-500"
+                          />
+                          {newImageUrl.trim() && (
+                            <div className="relative w-full h-24 rounded-xl overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center">
+                              <img 
+                                src={newImageUrl} 
+                                alt="Preview" 
+                                className="w-full h-full object-cover"
+                                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <p className="text-[8px] text-gray-400 font-bold">
                         {isRtl 
-                          ? 'تنبيه: يمكنك رفع التسليمة الآن، أو تخطي الرفع وجدولتها باللون الأحمر، ورفعها لاحقاً لترقية اللون.'
-                          : 'You can bypass files now (agenda item is red). Add results file later to turn it yellow.'}
+                          ? 'تنبيه: يمكنك رفع الصورة أو وضع رابطها مباشرة الآن، أو جدولتها ورفعها لاحقاً.'
+                          : 'Attach image file or enter direct image link URL.'}
                       </p>
                     </div>
 

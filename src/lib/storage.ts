@@ -39,6 +39,42 @@ function detectFileType(file: File): 'Image' | 'Video' | 'Document' {
   return 'Document';
 }
 
+export function compressImageFile(file: File, maxW = 1000, quality = 0.7): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+        resolve(dataUrl);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxW) {
+          height = Math.round((height * maxW) / width);
+          width = maxW;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
  * Upload a file to Firebase Storage if available, with Data URL fallback for local / offline mode.
  */
@@ -64,20 +100,35 @@ export async function uploadMediaFile(
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
             if (onProgress) onProgress(Math.round(progress));
           },
-          (error) => {
-            console.warn('Firebase storage upload failed, falling back to local object preview:', error);
-            // Fallback to local DataURL
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                url: reader.result as string,
-                name: file.name,
-                size: formattedSize,
-                type: fileType,
-              });
-            };
-            reader.onerror = () => reject(error);
-            reader.readAsDataURL(file);
+          async (error) => {
+            console.warn('Firebase storage upload failed, falling back to local compressed preview:', error);
+            try {
+              if (file.type.startsWith('image/')) {
+                const compressed = await compressImageFile(file);
+                if (onProgress) onProgress(100);
+                resolve({
+                  url: compressed,
+                  name: file.name,
+                  size: formattedSize,
+                  type: fileType,
+                });
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (onProgress) onProgress(100);
+                resolve({
+                  url: reader.result as string,
+                  name: file.name,
+                  size: formattedSize,
+                  type: fileType,
+                });
+              };
+              reader.onerror = () => reject(error);
+              reader.readAsDataURL(file);
+            } catch (err) {
+              reject(err);
+            }
           },
           async () => {
             const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
@@ -95,7 +146,18 @@ export async function uploadMediaFile(
     }
   }
 
-  // Fallback to Data URL for instant browser preview
+  // Fallback to Data URL for instant browser preview with auto-compression
+  if (file.type.startsWith('image/')) {
+    const compressed = await compressImageFile(file);
+    if (onProgress) onProgress(100);
+    return {
+      url: compressed,
+      name: file.name,
+      size: formattedSize,
+      type: fileType,
+    };
+  }
+
   return new Promise<UploadResult>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {

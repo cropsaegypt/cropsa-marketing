@@ -78,6 +78,7 @@ export const NewContentModal: React.FC<NewContentModalProps> = ({ lang, isOpen, 
   // File Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [mediaInputMode, setMediaInputMode] = useState<'upload' | 'url'>('upload');
 
   const handleGenerateAi = async () => {
     if (!aiTopic.trim()) {
@@ -441,28 +442,87 @@ export const NewContentModal: React.FC<NewContentModalProps> = ({ lang, isOpen, 
 
                   {/* Media Upload / Attachment */}
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <ImageIcon size={14} />
-                      {isRtl ? 'صورة الغلاف أو التصميم' : 'Cover Image / Design'}
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <label className="flex-1 flex items-center justify-center gap-3 px-5 py-3.5 bg-gray-50 hover:bg-gray-100 border border-dashed border-gray-300 rounded-2xl cursor-pointer transition-all text-xs font-bold text-gray-600">
-                        <Upload size={16} />
-                        <span>{isUploading ? `${isRtl ? 'جاري الرفع' : 'Uploading'} (${uploadProgress}%)...` : (isRtl ? 'رفع تصميم أو صورة' : 'Upload Design or Photo')}</span>
-                        <input
-                          type="file"
-                          accept="image/*,video/*"
-                          onChange={handleFileUpload}
-                          disabled={isUploading}
-                          className="hidden"
-                        />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                        <ImageIcon size={14} />
+                        {isRtl ? 'صورة الغلاف أو التصميم' : 'Cover Image / Design'}
                       </label>
-                      {formData.mediaUrl && (
-                        <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-200 shrink-0">
-                          <img src={formData.mediaUrl} alt="Preview" className="w-full h-full object-cover" />
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setMediaInputMode('upload')}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                            mediaInputMode === 'upload' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                          )}
+                        >
+                          {isRtl ? 'رفع ملف' : 'Upload'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMediaInputMode('url')}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                            mediaInputMode === 'url' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                          )}
+                        >
+                          {isRtl ? 'رابط صورة (URL)' : 'Image URL'}
+                        </button>
+                      </div>
                     </div>
+
+                    {mediaInputMode === 'upload' ? (
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 flex items-center justify-center gap-3 px-5 py-3.5 bg-gray-50 hover:bg-gray-100 border border-dashed border-gray-300 rounded-2xl cursor-pointer transition-all text-xs font-bold text-gray-600">
+                          <Upload size={16} />
+                          <span>{isUploading ? `${isRtl ? 'جاري الرفع' : 'Uploading'} (${uploadProgress}%)...` : (isRtl ? 'رفع تصميم أو صورة' : 'Upload Design or Photo')}</span>
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            onChange={handleFileUpload}
+                            disabled={isUploading}
+                            className="hidden"
+                          />
+                        </label>
+                        {formData.mediaUrl && (
+                          <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-200 shrink-0">
+                            <img src={formData.mediaUrl} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="url"
+                            value={formData.mediaUrl || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, mediaUrl: e.target.value }))}
+                            placeholder={isRtl ? 'https://example.com/image.jpg (رابط مباشر للصورة)' : 'https://example.com/image.jpg'}
+                            className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-green-400 focus:bg-white"
+                          />
+                          {formData.mediaUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, mediaUrl: '' }))}
+                              className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                              title={isRtl ? 'إزالة الرابط' : 'Clear URL'}
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                        {formData.mediaUrl && (
+                          <div className="relative w-full h-28 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center">
+                            <img 
+                              src={formData.mediaUrl} 
+                              alt="Preview" 
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

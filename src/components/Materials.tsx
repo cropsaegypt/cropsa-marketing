@@ -69,6 +69,7 @@ export const Materials: React.FC<MaterialsProps> = ({ lang, items, onUpdateItems
   const [editingItem, setEditingItem] = useState<MaterialItem | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [materialSourceMode, setMaterialSourceMode] = useState<'upload' | 'url'>('upload');
   const [formData, setFormData] = useState<Partial<MaterialItem>>({
     name: '',
     type: 'Image',
@@ -91,8 +92,10 @@ export const Materials: React.FC<MaterialsProps> = ({ lang, items, onUpdateItems
     if (item) {
       setEditingItem(item);
       setFormData(item);
+      setMaterialSourceMode(item.url?.startsWith('http') && !item.url?.includes('firebasestorage') ? 'url' : 'upload');
     } else {
       setEditingItem(null);
+      setMaterialSourceMode('upload');
       setFormData({ 
         name: '', 
         type: 'Image', 
@@ -566,29 +569,81 @@ export const Materials: React.FC<MaterialsProps> = ({ lang, items, onUpdateItems
                   </div>
                 </div>
               ) : (
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-wider">{isRtl ? 'رفع ملف حقيقي' : 'Upload File'}</label>
-                  <div 
-                    onClick={() => !isUploading && fileInputRef.current?.click()}
-                    className={cn(
-                      "w-full border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 transition-all",
-                      isUploading ? "bg-gray-100 cursor-not-allowed" : "cursor-pointer hover:bg-gray-50 hover:border-green-400"
-                    )}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="animate-spin text-green-600" size={24} />
-                        <p className="text-xs font-bold text-gray-700">{isRtl ? 'جاري رفع الملف...' : 'Uploading file...'} {uploadProgress}%</p>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="text-gray-400" size={24} />
-                        <p className="text-xs font-bold text-gray-500">{isRtl ? 'اضغط لاختيار ملف من جهازك' : 'Click to select file'}</p>
-                      </>
-                    )}
-                    {formData.name && <p className="text-[11px] text-green-600 font-bold">{formData.name} ({formData.size})</p>}
-                    <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-gray-400 uppercase tracking-wider">
+                      {isRtl ? 'المحتوى (ملف أو رابط مباشر)' : 'Content (File or URL)'}
+                    </label>
+                    <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setMaterialSourceMode('upload')}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                          materialSourceMode === 'upload' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                        )}
+                      >
+                        {isRtl ? 'رفع ملف' : 'Upload'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMaterialSourceMode('url')}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md transition-all cursor-pointer",
+                          materialSourceMode === 'url' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                        )}
+                      >
+                        {isRtl ? 'رابط صورة (URL)' : 'Direct Link'}
+                      </button>
+                    </div>
                   </div>
+
+                  {materialSourceMode === 'upload' ? (
+                    <div 
+                      onClick={() => !isUploading && fileInputRef.current?.click()}
+                      className={cn(
+                        "w-full border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 transition-all",
+                        isUploading ? "bg-gray-100 cursor-not-allowed" : "cursor-pointer hover:bg-gray-50 hover:border-green-400"
+                      )}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="animate-spin text-green-600" size={24} />
+                          <p className="text-xs font-bold text-gray-700">{isRtl ? 'جاري رفع الملف...' : 'Uploading file...'} {uploadProgress}%</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="text-gray-400" size={24} />
+                          <p className="text-xs font-bold text-gray-500">{isRtl ? 'اضغط لاختيار ملف من جهازك' : 'Click to select file'}</p>
+                        </>
+                      )}
+                      {formData.name && <p className="text-[11px] text-green-600 font-bold">{formData.name} ({formData.size})</p>}
+                      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                        <input 
+                          type="text" 
+                          value={formData.url || ''}
+                          placeholder="https://example.com/image.jpg"
+                          onChange={(e) => setFormData({...formData, url: e.target.value, size: 'External Link'})}
+                          className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-150 rounded-2xl outline-none focus:ring-4 focus:ring-green-100 transition-all font-semibold text-xs"
+                        />
+                      </div>
+                      {formData.url && formData.type === 'Image' && (
+                        <div className="relative w-full h-28 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center">
+                          <img 
+                            src={formData.url} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

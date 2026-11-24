@@ -19,8 +19,9 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { ContentDetailModal } from './components/ContentDetailModal';
 import { NewContentModal } from './components/NewContentModal';
+import { MarketingIdeas } from './components/MarketingIdeas';
 import { MOCK_CONTENT, MOCK_USERS } from './constants';
-import { ContentItem, Language, ContentStatus, Task, Comment, User, CustomKPI, DashboardWidget, MaterialItem, KanbanStage } from './types';
+import { ContentItem, Language, ContentStatus, Task, Comment, User, CustomKPI, DashboardWidget, MaterialItem, KanbanStage, MarketingIdea } from './types';
 import { cn } from './lib/utils';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
@@ -80,9 +81,10 @@ export default function App() {
     }
   };
   const [lang, setLang] = useState<Language>('en');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'kanban' | 'materials' | 'analytics' | 'competitors' | 'preparation' | 'users' | 'events' | 'notifications' | 'settings' | 'weather' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'marketing-ideas' | 'calendar' | 'kanban' | 'materials' | 'analytics' | 'competitors' | 'preparation' | 'users' | 'events' | 'notifications' | 'settings' | 'weather' | 'profile'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [content, setContent] = useState<ContentItem[]>([]);
+  const [marketingIdeas, setMarketingIdeas] = useState<MarketingIdea[]>([]);
   const [materials, setMaterials] = useState<MaterialItem[]>([
     { id: '1', name: 'Wheat Harvest Photo', type: 'Image', url: 'https://picsum.photos/seed/wheat/800/600', addedDate: '2026-04-01', size: '2.4 MB' },
     { id: '2', name: 'Irrigation Tutorial', type: 'Video', url: '#', addedDate: '2026-03-28', size: '45.8 MB' },
@@ -462,6 +464,91 @@ export default function App() {
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `events/${e.id}`);
       }
+    }
+  };
+
+  // Firestore sync for marketing_ideas list
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'marketing_ideas'), (snapshot) => {
+      const fetched: MarketingIdea[] = [];
+      snapshot.forEach((docSnap) => {
+        fetched.push({ ...(docSnap.data() as MarketingIdea), id: docSnap.id });
+      });
+      fetched.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      setMarketingIdeas(fetched);
+    }, (error) => {
+      console.warn('marketing_ideas sync notice:', error);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const handleAddIdea = async (newIdea: Omit<MarketingIdea, 'id' | 'createdAt'>) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const ideaWithId: MarketingIdea = {
+      ...newIdea,
+      id,
+      createdAt: new Date().toISOString()
+    };
+    try {
+      await setDoc(doc(db, 'marketing_ideas', id), ideaWithId);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `marketing_ideas/${id}`);
+    }
+  };
+
+  const handleUpdateIdea = async (id: string, updates: Partial<MarketingIdea>) => {
+    try {
+      await setDoc(doc(db, 'marketing_ideas', id), updates, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `marketing_ideas/${id}`);
+    }
+  };
+
+  const handleDeleteIdea = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'marketing_ideas', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `marketing_ideas/${id}`);
+    }
+  };
+
+  const handlePromoteToContent = async (idea: MarketingIdea, targetWeek: string) => {
+    const contentId = Math.random().toString(36).substr(2, 9);
+    const contentItem: ContentItem = {
+      id: contentId,
+      title: idea.title,
+      caption: idea.description,
+      details: idea.description,
+      week: targetWeek,
+      status: 'Idea',
+      approvalStatus: 'Pending',
+      priority: 'Normal',
+      platforms: idea.platforms && idea.platforms.length > 0 ? idea.platforms : ['Facebook'],
+      type: idea.mediaType === 'video' ? 'Video' : (idea.mediaUrl ? 'Image' : 'Post'),
+      mediaUrl: idea.mediaUrl,
+      dueDate: idea.preferredDate || new Date().toISOString().split('T')[0],
+      publishDate: idea.preferredDate,
+      assignedTo: [],
+      createdBy: currentUser?.name || 'Ahmed Ali',
+      tasks: [],
+      labels: idea.labels,
+      preparationDate: new Date().toISOString().split('T')[0]
+    };
+
+    try {
+      // 1. Add to content collection
+      await setDoc(doc(db, 'content', contentId), contentItem);
+
+      // 2. Mark idea as approved & promoted in marketing_ideas collection
+      await setDoc(doc(db, 'marketing_ideas', idea.id), {
+        status: 'approved',
+        promotedToContentId: contentId,
+        promotedWeek: targetWeek,
+        promotedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `marketing_ideas/${idea.id}`);
     }
   };
 
@@ -965,6 +1052,19 @@ export default function App() {
                 setActiveTab={setActiveTab}
                 events={events}
                 platformAnalytics={platformAnalytics}
+              />
+            )}
+            {activeTab === 'marketing-ideas' && (
+              <MarketingIdeas 
+                key="marketing-ideas"
+                lang={lang}
+                ideas={marketingIdeas}
+                currentUser={currentUser}
+                onAddIdea={handleAddIdea}
+                onUpdateIdea={handleUpdateIdea}
+                onDeleteIdea={handleDeleteIdea}
+                onPromoteToContent={handlePromoteToContent}
+                setActiveTab={setActiveTab}
               />
             )}
             {activeTab === 'kanban' && (

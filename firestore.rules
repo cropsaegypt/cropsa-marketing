@@ -148,6 +148,26 @@ rules_version = '2';
 //   - period: string (required, 'daily' | 'weekly' | 'monthly')
 //   - metrics: map (optional, size <= 50)
 //
+// Collection: marketing_ideas
+// Document ID: {ideaId} (matches idea id)
+// Fields:
+//   - id: string (required, 1-100 chars, immutable)
+//   - title: string (required, 1-300 chars)
+//   - description: string (required, 0-50000 chars)
+//   - labels: list of strings (required, size <= 20)
+//   - platforms: list of strings (required, size <= 10)
+//   - mediaUrl: string (optional, 0-1000000 chars)
+//   - mediaType: string (optional, 'image' | 'video' | 'link' | 'none')
+//   - preferredDate: string (optional, 0-100 chars)
+//   - preferredSeason: string (optional, 0-100 chars)
+//   - status: string (required, 'active' | 'approved' | 'archived')
+//   - createdBy: string (required, 1-100 chars)
+//   - createdAt: string (required, 1-100 chars)
+//   - promotedToContentId: string (optional, 0-100 chars)
+//   - promotedWeek: string (optional, 0-100 chars)
+//   - promotedAt: string (optional, 0-100 chars)
+//   - votes: int (optional, >= 0)
+//
 // ===============================================================
 
 service cloud.firestore {
@@ -417,6 +437,36 @@ service cloud.firestore {
         (!('metrics' in data) || (data.metrics is map && data.metrics.size() <= 50));
     }
 
+    function isValidMarketingIdea(data) {
+      let allowed = [
+        'id', 'title', 'description', 'labels', 'platforms',
+        'mediaUrl', 'mediaType', 'preferredDate', 'preferredSeason',
+        'status', 'createdBy', 'createdAt',
+        'promotedToContentId', 'promotedWeek', 'promotedAt', 'votes'
+      ];
+      let validStatuses = ['active', 'approved', 'archived'];
+      let validMediaTypes = ['image', 'video', 'link', 'none'];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(['id', 'title', 'description', 'labels', 'platforms', 'status', 'createdBy', 'createdAt']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 300 &&
+        data.description is string && data.description.size() <= 50000 &&
+        data.labels is list && data.labels.size() <= 20 &&
+        data.platforms is list && data.platforms.size() <= 10 &&
+        data.status in validStatuses &&
+        data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 100 &&
+        data.createdAt is string && data.createdAt.size() >= 1 && data.createdAt.size() <= 100 &&
+        (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 1000000)) &&
+        (!('mediaType' in data) || data.mediaType in validMediaTypes) &&
+        (!('preferredDate' in data) || (data.preferredDate is string && data.preferredDate.size() <= 100)) &&
+        (!('preferredSeason' in data) || (data.preferredSeason is string && data.preferredSeason.size() <= 100)) &&
+        (!('promotedToContentId' in data) || (data.promotedToContentId is string && data.promotedToContentId.size() <= 100)) &&
+        (!('promotedWeek' in data) || (data.promotedWeek is string && data.promotedWeek.size() <= 100)) &&
+        (!('promotedAt' in data) || (data.promotedAt is string && data.promotedAt.size() <= 100)) &&
+        (!('votes' in data) || (data.votes is int && data.votes >= 0));
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -529,6 +579,17 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isValidCompetitorLog(request.resource.data) &&
         areImmutableFieldsUnchanged(['id']);
       allow delete: if isAuthenticated() && (isAdmin() || isManager());
+    }
+
+    // Marketing Ideas collection
+    match /marketing_ideas/{ideaId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidMarketingIdea(request.resource.data) &&
+        request.resource.data.id == ideaId;
+      allow update: if isAuthenticated() && isValidMarketingIdea(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAuthenticated() && 
+        (isAdmin() || isManager() || (resource.data.createdBy == request.auth.uid));
     }
   }
 }

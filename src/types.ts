@@ -150,4 +150,23 @@ export interface AnalyticsMetric {
   dateRange?: { start: string; end: string };
 }
 
+export interface MarketingIdea {
+  id: string;
+  title: string;
+  description: string;
+  labels: string[];
+  platforms: Platform[];
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'link' | 'none';
+  preferredDate?: string;
+  preferredSeason?: string;
+  status: 'active' | 'approved' | 'archived';
+  createdBy: string;
+  createdAt: string;
+  promotedToContentId?: string;
+  promotedWeek?: string;
+  promotedAt?: string;
+  votes?: number;
+}
+
 export type Language = 'en' | 'ar';

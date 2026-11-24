@@ -16,7 +16,8 @@ import {
   Bell,
   CloudSun,
   ShieldAlert,
-  Settings
+  Settings,
+  Lightbulb
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
+    { id: 'marketing-ideas', icon: Lightbulb, label: t.marketingIdeas },
     { id: 'preparation', icon: FileStack, label: t.preparation },
     { id: 'calendar', icon: Calendar, label: t.calendar },
     { id: 'kanban', icon: Trello, label: t.kanban },

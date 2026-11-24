@@ -4,6 +4,7 @@ export const translations = {
   en: {
     appName: "cropsa marketing",
     dashboard: "Dashboard",
+    marketingIdeas: "Marketing Ideas",
     calendar: "Content Publishing",
     kanban: "Kanban",
     materials: "Materials",
@@ -100,6 +101,7 @@ export const translations = {
   ar: {
     appName: "إدارة التسويق بكروبسا",
     dashboard: "لوحة التحكم",
+    marketingIdeas: "أفكار تسويقية",
     calendar: "نشر المحتوى",
     kanban: "كانبان",
     materials: "الماتريال",

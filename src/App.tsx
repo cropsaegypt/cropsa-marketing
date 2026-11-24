@@ -47,18 +47,37 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (isLoggedIn && !auth.currentUser) {
-      signInAnonymously(auth).catch((err) => console.warn('Auth session auto-restore:', err));
-    }
-  }, [isLoggedIn]);
+    // ALWAYS ensure an active Firebase Auth session so Firestore security rules allow reading users & data
+    const ensureAuth = async () => {
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (err) {
+          console.warn('Anonymous sign-in on app mount:', err);
+        }
+      }
+    };
+    ensureAuth();
+
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        signInAnonymously(auth).catch((err) => {
+          console.warn('Anonymous sign-in on auth change:', err);
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleLogout = () => {
     try {
       sessionStorage.removeItem('cropsa_current_user');
     } catch (_) {}
-    signOut(auth).catch(() => {});
     setCurrentUser(null);
     setIsLoggedIn(false);
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch(() => {});
+    }
   };
   const [lang, setLang] = useState<Language>('en');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'kanban' | 'materials' | 'analytics' | 'competitors' | 'preparation' | 'users' | 'events' | 'notifications' | 'settings' | 'weather' | 'profile'>('dashboard');

@@ -1,10 +1,10 @@
 import { User, ContentItem } from './types';
 
 export const MOCK_USERS: User[] = [
-  { id: '1', name: 'Ahmed Ali', email: 'ahmed@cropsa.com', role: 'Admin', permissions: ['all'], avatar: 'AA' },
-  { id: '2', name: 'Sara Hassan', email: 'sara@cropsa.com', role: 'Content Manager', permissions: ['create', 'edit', 'approve'], avatar: 'SH' },
-  { id: '3', name: 'Mona Zaki', email: 'mona@cropsa.com', role: 'Content Creator', permissions: ['create', 'edit'], avatar: 'MZ' },
-  { id: '4', name: 'Fady Ibrahim', email: 'fady@cropsa.com', role: 'Designer', permissions: ['view'], avatar: 'FI' },
+  { id: '1', name: 'Ahmed Ali', email: 'ahmed@cropsa.com', password: 'cropsa2026', role: 'Admin', permissions: ['all'], avatar: 'AA' },
+  { id: '2', name: 'Sara Hassan', email: 'sara@cropsa.com', password: 'cropsa2026', role: 'Content Manager', permissions: ['create', 'edit', 'approve'], avatar: 'SH' },
+  { id: '3', name: 'Mona Zaki', email: 'mona@cropsa.com', password: 'cropsa2026', role: 'Content Creator', permissions: ['create', 'edit'], avatar: 'MZ' },
+  { id: '4', name: 'Fady Ibrahim', email: 'fady@cropsa.com', password: 'cropsa2026', role: 'Designer', permissions: ['view'], avatar: 'FI' },
 ];
 
 export const MOCK_CONTENT: ContentItem[] = [

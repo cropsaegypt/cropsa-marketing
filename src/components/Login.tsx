@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Mail, 
   Lock, 
@@ -11,14 +11,16 @@ import {
   TrendingUp,
   Share2,
   Calendar as CalendarIcon,
-  CheckCircle2
+  CheckCircle2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { translations } from '../translations';
 import { Language, User } from '../types';
 import { cn } from '../lib/utils';
 import { auth, db } from '../firebase';
-import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { signInAnonymously } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 
 interface LoginProps {
@@ -32,9 +34,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang, users }) =
   const t = translations[lang];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const isRtl = lang === 'ar';
+
+  // Helper to convert Arabic numerals to Western numerals
+  const normalizeArabicDigits = (str: string) => {
+    return str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+  };
+
+  // Pre-initialize anonymous session as soon as login page loads so Firestore is immediately readable
+  useEffect(() => {
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch((err) => {
+        console.warn('Anonymous auth initialization on login mount:', err);
+      });
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,20 +67,20 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang, users }) =
     try {
       const enteredEmail = email.trim().toLowerCase();
       const enteredPass = password.trim();
+      const normEnteredPass = normalizeArabicDigits(enteredPass);
       
-      const isDefaultAdmin = (enteredEmail === 'admin' || enteredEmail === 'admin@cropsa.com') && enteredPass === 'cropsa2026';
+      const isDefaultAdmin = (
+        (enteredEmail === 'admin' || enteredEmail === 'admin@cropsa.com') && 
+        (enteredPass === 'cropsa2026' || normEnteredPass === 'cropsa2026')
+      );
       
-      // Authenticate session with Firebase Auth to satisfy Firestore Security Rules
-      try {
-        if (!auth.currentUser) {
-          try {
-            await signInWithEmailAndPassword(auth, enteredEmail.includes('@') ? enteredEmail : 'admin@cropsa.com', enteredPass);
-          } catch {
-            await signInAnonymously(auth);
-          }
+      // Ensure active session with Firebase Auth to satisfy Firestore Security Rules
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (authErr) {
+          console.warn('Firebase Auth sign in fallback:', authErr);
         }
-      } catch (authErr) {
-        console.warn('Firebase Auth sign in fallback:', authErr);
       }
 
       // Load fresh users directly from Firestore to ensure synchronized login
@@ -71,20 +88,58 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang, users }) =
       try {
         const snapshot = await getDocs(collection(db, 'users'));
         const fetched: User[] = [];
-        snapshot.forEach(doc => {
-          fetched.push(doc.data() as User);
+        snapshot.forEach(d => {
+          fetched.push({ ...(d.data() as User), id: d.id });
         });
         if (fetched.length > 0) {
           currentUsersList = fetched;
         }
       } catch (err) {
-        console.warn('Fallback: firebase login fetch failed, using cached app state users', err);
+        console.warn('Fallback: firebase login fetch failed, attempting retry...', err);
+        try {
+          if (!auth.currentUser) await signInAnonymously(auth);
+          const retrySnap = await getDocs(collection(db, 'users'));
+          const retryFetched: User[] = [];
+          retrySnap.forEach(d => {
+            retryFetched.push({ ...(d.data() as User), id: d.id });
+          });
+          if (retryFetched.length > 0) {
+            currentUsersList = retryFetched;
+          }
+        } catch (_) {}
       }
 
       const matchedUser = currentUsersList.find(u => {
         const uEmail = (u.email || '').trim().toLowerCase();
+        const uUsername = uEmail.split('@')[0];
+        const uName = (u.name || '').trim().toLowerCase();
         const uPass = (u.password || '').trim();
-        return uEmail === enteredEmail && (uPass === enteredPass || enteredPass === 'cropsa2026');
+        const normUPass = normalizeArabicDigits(uPass);
+
+        // Match by full email, username before '@', or exact user name
+        const isIdentityMatched = 
+          uEmail === enteredEmail || 
+          (uUsername && uUsername === enteredEmail) || 
+          uName === enteredEmail;
+
+        if (!isIdentityMatched) return false;
+
+        // Master password 'cropsa2026' always grants access to any recognized user
+        if (enteredPass === 'cropsa2026' || normEnteredPass === 'cropsa2026') {
+          return true;
+        }
+
+        // Check if user has an explicit password in Firestore
+        if (uPass) {
+          return (
+            uPass === enteredPass || 
+            normUPass === normEnteredPass || 
+            uPass === normEnteredPass
+          );
+        }
+
+        // If user has no password set yet in DB, allow cropsa2026
+        return enteredPass === 'cropsa2026';
       });
 
       setIsLoading(false);
@@ -104,12 +159,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang, users }) =
           lastLogin: loginTime
         };
 
-        // Write the lastLogin timestamp to Firestore
-        try {
-          await setDoc(doc(db, 'users', userObj.id), userObj, { merge: true });
-        } catch (dbErr) {
-          console.error("Failed to update lastLogin for user", dbErr);
-        }
+        // Write the lastLogin timestamp to Firestore asynchronously (non-blocking)
+        setDoc(doc(db, 'users', userObj.id), { lastLogin: loginTime }, { merge: true })
+          .catch((dbErr) => console.warn("Notice: lastLogin write skipped", dbErr));
 
         try {
           sessionStorage.setItem('cropsa_current_user', JSON.stringify(userObj));
@@ -274,16 +326,27 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang, users }) =
               <div className="relative">
                 <Lock className={cn("absolute top-1/2 -translate-y-1/2 text-gray-400", isRtl ? "right-4" : "left-4")} size={18} />
                 <input 
-                  type="password" 
+                  type={showPassword ? "text" : "password"} 
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className={cn(
                     "w-full py-3.5 bg-white border border-gray-200 rounded-2xl focus:ring-4 focus:ring-emerald-50 outline-none transition-all font-semibold text-sm text-gray-800 shadow-sm focus:border-emerald-600",
-                    isRtl ? "pr-12 pl-4" : "pl-12 pr-4"
+                    isRtl ? "pr-12 pl-12" : "pl-12 pr-12"
                   )}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1.5 cursor-pointer transition-colors",
+                    isRtl ? "left-3" : "right-3"
+                  )}
+                  title={showPassword ? (isRtl ? 'إخفاء كلمة المرور' : 'Hide password') : (isRtl ? 'إظهار كلمة المرور' : 'Show password')}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
